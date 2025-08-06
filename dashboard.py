@@ -251,6 +251,8 @@ def display_behavior_analysis_view(df):
 
     # 3. 分析邏輯：根據規則分類
     df_filtered['Duration_sec'] = df_filtered['Talk Durations'].dt.total_seconds()
+    # 排除通話時長為0的紀錄，因為這不代表實際通話
+    df_filtered = df_filtered[df_filtered['Duration_sec'] > 0].copy()
 
     bins = [-1, 5, 10, 30, 60, 120, 180, float('inf')]
     labels = [
