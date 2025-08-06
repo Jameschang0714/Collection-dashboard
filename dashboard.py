@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import altair as alt
 
 # --- 自定義組別排序 ---
 CUSTOM_GROUP_ORDER = [
@@ -145,7 +146,6 @@ def display_daily_view(df, selected_group, thresholds):
         styled_summary = summary.style.apply(style_daily_kpi, axis=1)
         st.dataframe(styled_summary, use_container_width=True, hide_index=True)
 
-
 def display_monthly_view(df, selected_group, thresholds):
     st.header("月度催員接通數儀表板")
 
@@ -266,7 +266,7 @@ def display_behavior_analysis_view(df):
     df_filtered['Duration_Category'] = pd.cut(df_filtered['Duration_sec'], bins=bins, labels=labels, right=True)
 
     # 4. 資料彙總
-    call_counts = df_filtered['Duration_Category'].value_counts().reindex(labels).fillna(0)
+    call_counts = df_filtered.groupby('Duration_Category').size().reindex(labels).fillna(0)
     
     # 5. 視覺化呈現
     st.subheader(f"{selected_agent} 的通話時長分佈")
@@ -274,12 +274,20 @@ def display_behavior_analysis_view(df):
     chart_data = pd.DataFrame({
         "通話區間": call_counts.index,
         "通話數": call_counts.values.astype(int)
-    }).set_index("通話區間")
+    })
 
-    st.bar_chart(chart_data)
+    chart = alt.Chart(chart_data).mark_bar().encode(
+        x=alt.X('通話區間', sort=labels, title="通話時長區間", axis=alt.Axis(labelAngle=0)),
+        y=alt.Y('通話數', title="通話筆數"),
+        tooltip=['通話區間', '通話數']
+    ).properties(
+        title=f"{selected_agent} 在選定時間內的通話時長分佈"
+    )
+
+    st.altair_chart(chart, use_container_width=True)
 
     st.subheader("詳細數據")
-    st.dataframe(chart_data.reset_index(), use_container_width=True, hide_index=True)
+    st.dataframe(chart_data, use_container_width=True, hide_index=True)
 
 
 # --- 主應用程式 ---
