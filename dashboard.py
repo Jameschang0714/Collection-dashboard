@@ -93,12 +93,9 @@ def display_daily_view(df, selected_group, thresholds):
         summary['Repetition_rate'] = np.where(summary['Total_Success_Case'] > 0, summary['Total_Outbound_Call_Success'] / summary['Total_Success_Case'], 0)
         
         # --- 【架構升級】採用顯性流程計算平均通話時長 ---
-        # a. 將 Timedelta 明確轉換為總秒數 (數字)
         total_seconds = summary['Total_Talk_Duration'].dt.total_seconds()
         total_cases = summary['Total_Case_call']
-        # b. 執行標準的數字除法
         average_seconds = np.where(total_cases > 0, total_seconds / total_cases, 0)
-        # c. 將計算結果 (平均秒數) 轉換回 Timedelta 格式
         summary['Average_Talk_Duration'] = pd.to_timedelta(average_seconds, unit='s')
         
         # 5. 格式化輸出
@@ -217,6 +214,74 @@ def display_monthly_view(df, selected_group, thresholds):
                 column_config={"Group": None}
             )
 
+def display_behavior_analysis_view(df):
+    """新增的催員催收行為分析視圖"""
+    st.header("催員催收行為分析")
+
+    # 1. UI 過濾器
+    agent_list = sorted(df['Agent Name'].unique())
+    if not agent_list:
+        st.info("資料中沒有任何催員可供分析。")
+        return
+    selected_agent = st.selectbox("選擇催員", agent_list)
+
+    analysis_period = st.radio("選擇分析區間", ["單日分析", "月份分析"], horizontal=True, key="behavior_analysis_period")
+
+    df_agent = df[df['Agent Name'] == selected_agent].copy()
+
+    # 2. 根據選擇的區間過濾資料
+    if analysis_period == "單日分析":
+        available_dates = sorted(df_agent['Date'].dt.date.unique(), reverse=True)
+        if not available_dates:
+            st.warning(f"催員 {selected_agent} 沒有任何通話紀錄。")
+            return
+        selected_date = st.selectbox("選擇日期", available_dates)
+        df_filtered = df_agent[df_agent['Date'].dt.date == selected_date]
+    else:  # 月份分析
+        available_months = sorted(df_agent['Date'].dt.month.unique())
+        if not available_months:
+            st.warning(f"催員 {selected_agent} 沒有任何通話紀錄。")
+            return
+        selected_month = st.selectbox("選擇月份", available_months, format_func=lambda x: f"2025-{x:02d}")
+        df_filtered = df_agent[df_agent['Date'].dt.month == selected_month]
+
+    if df_filtered.empty:
+        st.info("在選定的時間範圍內，這位催員沒有通話紀錄。")
+        return
+
+    # 3. 分析邏輯：根據規則分類
+    df_filtered['Duration_sec'] = df_filtered['Talk Durations'].dt.total_seconds()
+
+    bins = [-1, 5, 10, 30, 60, 120, 180, float('inf')]
+    labels = [
+        "~ 5秒",
+        "5秒 - 10秒",
+        "10秒 - 30秒",
+        "30秒 - 1分鐘",
+        "1分鐘 - 2分鐘",
+        "2分鐘 - 3分鐘",
+        "3分鐘以上"
+    ]
+
+    df_filtered['Duration_Category'] = pd.cut(df_filtered['Duration_sec'], bins=bins, labels=labels, right=True)
+
+    # 4. 資料彙總
+    call_counts = df_filtered['Duration_Category'].value_counts().reindex(labels).fillna(0)
+    
+    # 5. 視覺化呈現
+    st.subheader(f"{selected_agent} 的通話時長分佈")
+    
+    chart_data = pd.DataFrame({
+        "通話區間": call_counts.index,
+        "通話數": call_counts.values.astype(int)
+    }).set_index("通話區間")
+
+    st.bar_chart(chart_data)
+
+    st.subheader("詳細數據")
+    st.dataframe(chart_data.reset_index(), use_container_width=True, hide_index=True)
+
+
 # --- 主應用程式 ---
 def main():
     df = load_data("consolidated_report.csv")
@@ -224,21 +289,31 @@ def main():
 
     if df is not None:
         st.sidebar.header("選擇檢視模式")
-        view_mode = st.sidebar.radio("", ["催員每日撥打狀況報告", "月度催員接通數儀表板"], label_visibility="collapsed")
+        view_mode = st.sidebar.radio(
+            "",
+            ["催員每日撥打狀況報告", "月度催員接通數儀表板", "催員催收行為分析"],
+            label_visibility="collapsed"
+        )
 
-        st.sidebar.header("篩選團隊")
-        if 'Group' in df.columns:
-            df['Group'] = df['Group'].astype(str)
-            all_groups = ["所有團隊"] + [g for g in CUSTOM_GROUP_ORDER if g in df['Group'].unique()]
-        else:
-            all_groups = ["所有團隊"]
+        # 催收行為分析模式有自己的篩選器，故在此模式下隱藏通用團隊篩選器
+        if view_mode != "催員催收行為分析":
+            st.sidebar.header("篩選團隊")
+            if 'Group' in df.columns:
+                df['Group'] = df['Group'].astype(str)
+                all_groups = ["所有團隊"] + [g for g in CUSTOM_GROUP_ORDER if g in df['Group'].unique()]
+            else:
+                all_groups = ["所有團隊"]
             
-        selected_group = st.sidebar.selectbox("", all_groups, label_visibility="collapsed")
+            selected_group = st.sidebar.selectbox("", all_groups, label_visibility="collapsed")
+        else:
+            selected_group = None  # 在新模式下不需要
 
         if view_mode == "催員每日撥打狀況報告":
             display_daily_view(df, selected_group, thresholds)
         elif view_mode == "月度催員接通數儀表板":
             display_monthly_view(df, selected_group, thresholds)
+        elif view_mode == "催員催收行為分析":
+            display_behavior_analysis_view(df)
 
 if __name__ == "__main__":
     main()
