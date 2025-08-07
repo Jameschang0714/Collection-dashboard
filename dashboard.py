@@ -237,7 +237,7 @@ def display_behavior_analysis_view(df):
         if not available_dates:
             st.warning(f"催員 {selected_agent} 沒有任何通話紀錄。")
             return
-        st.write(f"單日分析可用日期: {available_dates}")
+        
         selected_date = st.selectbox("選擇日期", available_dates)
         df_filtered = df_agent[df_agent['Date'].dt.date == selected_date]
     else:  # 月份分析
