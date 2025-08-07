@@ -13,7 +13,7 @@ CUSTOM_GROUP_ORDER = [
 # --- 頁面配置 ---
 st.set_page_config(
     page_title="電話催收過程指標追蹤儀表板",
-    page_icon="📊",
+    page_icon="🎯",
     layout="wide"
 )
 
@@ -296,7 +296,7 @@ def display_behavior_analysis_view(df, selected_group):
     st.dataframe(category_counts.style.format({'Percentage': '{:.1%}'}), use_container_width=True, hide_index=True)
 
 def display_call_time_analysis_view(df, selected_group):
-    """新增的催員時點撥打與接通分析視圖"""
+    """催員時點撥打與接通分析視圖"""
     st.header("催員時點撥打與接通分析")
 
     if selected_group != "所有團隊":
@@ -366,25 +366,16 @@ def display_call_time_analysis_view(df, selected_group):
     
     display_mode = st.radio("選擇顯示模式", ["總撥出電話數", "總接通電話數", "綜合分析 (撥出數 + 接通率熱力圖)"], horizontal=True, key="call_time_display_mode")
 
-    # --- 【介面優化】---
-    # 在綜合分析模式下，預設使用 "數量" 作為Y軸，但保留 "比例" 選項給高階分析
-    y_axis_options = ["數量", "比例"]
-    default_y_axis_index = 0
-    
-    # 只有在非綜合分析模式下，才顯示 Y 軸選項
     if display_mode != "綜合分析 (撥出數 + 接通率熱力圖)":
         y_axis_mode = st.radio(
             "選擇 Y 軸顯示方式",
-            y_axis_options,
-            index=default_y_axis_index,
+            ["數量", "比例"],
             horizontal=True,
             key="call_time_y_axis_mode"
         )
     else:
-        # 在綜合分析模式下，為避免解讀混淆，預設並鎖定Y軸為 "數量"
         y_axis_mode = "數量"
         st.caption("註：為清晰呈現投入量與接通效率的關係，綜合分析圖 Y 軸固定為「數量」。")
-
 
     st.subheader(f"{analysis_subject_name} 的通話時點分佈 ({time_granularity})")
 
@@ -419,12 +410,11 @@ def display_call_time_analysis_view(df, selected_group):
         ).properties(title=f"{analysis_subject_name} {y_title} ({time_granularity})")
 
     else: # 綜合分析
-        # 在此模式下，Y軸固定為撥出數，顏色為接通率
-        y_field, y_title, y_format = 'Total_Outbound_Calls', '總撥出電話數', 's'
+        y_field, y_title = 'Total_Outbound_Calls', '總撥出電話數'
 
         chart = alt.Chart(hourly_stats).mark_bar().encode(
             x=alt.X('Time_Interval_Label', sort=None, title="時間區間", axis=alt.Axis(labelAngle=0)),
-            y=alt.Y(y_field, title=y_title, axis=alt.Axis(format=y_format)),
+            y=alt.Y(y_field, title=y_title, axis=alt.Axis(format='s')),
             color=alt.Color('Connection_Rate', scale=alt.Scale(scheme='blues', domain=[0, 0.50]), title="接通率"),
             tooltip=[alt.Tooltip('Time_Interval_Label', title='時間區間'),
                      alt.Tooltip('Total_Outbound_Calls', title='總撥出數'),
@@ -449,6 +439,155 @@ def display_call_time_analysis_view(df, selected_group):
         hide_index=True
     )
 
+# --- V4.0 新增分析模組 ---
+def display_profiling_view(df, selected_group):
+    # --- 【更名 V4.3】 ---
+    st.header("催員行為與高績效人員比較 (Agent vs. Benchmark)")
+
+    if selected_group != "所有團隊":
+        df = df[df['Group'] == selected_group].copy()
+    
+    agent_list = sorted(df['Agent Name'].unique())
+    if not agent_list:
+        st.info(f"團隊 '{selected_group}' 中沒有可用的資料。")
+        return
+        
+    col1, col2, col3 = st.columns([2, 2, 1.5])
+    with col1:
+        selected_agent = st.selectbox("選擇要分析的催員", agent_list, key="profiling_agent_select")
+    with col2:
+        benchmark_options = [agent for agent in agent_list if agent != selected_agent]
+        benchmark_agents = st.multiselect("選擇績效標竿群組 (可多選)", benchmark_options, key="profiling_benchmark_select")
+    with col3:
+        analysis_period = st.radio("選擇分析區間", ["單日", "月份"], horizontal=True, key="profiling_period")
+
+    if analysis_period == "單日":
+        available_dates = sorted(df['Date'].dt.date.unique(), reverse=True)
+        if not available_dates:
+            st.warning("資料中沒有可用的日期。")
+            return
+        selected_date = st.selectbox("選擇日期", available_dates, key="profiling_date_select")
+        df_period = df[df['Date'].dt.date == selected_date]
+    else:
+        available_months = sorted(df['Date'].dt.month.unique())
+        if not available_months:
+            st.warning("資料中沒有可用的月份。")
+            return
+        selected_month = st.selectbox("選擇月份", available_months, format_func=lambda x: f"2025-{x:02d}", key="profiling_month_select")
+        df_period = df[df['Date'].dt.month == selected_month]
+
+    if df_period.empty:
+        st.info("在選定的時間範圍內，沒有通話紀錄。")
+        return
+
+    df_agent = df_period[df_period['Agent Name'] == selected_agent]
+    
+    df_benchmark = pd.DataFrame()
+    if benchmark_agents:
+        df_benchmark = df_period[df_period['Agent Name'].isin(benchmark_agents)]
+
+    # --- 1. 通話時點分析 (個人 vs. 標竿群組平均) ---
+    st.subheader(f"通話時點模式分析：{selected_agent} vs. 標竿群組")
+
+    df_agent['Time_Interval'] = df_agent['Call Assigned'].dt.floor('H').dt.strftime('%H:00')
+    agent_time_stats = df_agent['Time_Interval'].value_counts().reset_index()
+    agent_time_stats.columns = ['Time_Interval', '個人撥打數']
+
+    if not df_benchmark.empty:
+        df_benchmark['Time_Interval'] = df_benchmark['Call Assigned'].dt.floor('H').dt.strftime('%H:00')
+        benchmark_time_stats = df_benchmark.groupby('Time_Interval')['Case No'].count()
+        num_benchmark_agents = df_benchmark['Agent ID'].nunique()
+        benchmark_avg_time_stats = (benchmark_time_stats / num_benchmark_agents).reset_index()
+        benchmark_avg_time_stats.columns = ['Time_Interval', '標竿群組平均撥打數']
+        
+        comparison_df = pd.merge(agent_time_stats, benchmark_avg_time_stats, on='Time_Interval', how='outer').fillna(0)
+    else:
+        comparison_df = agent_time_stats
+        comparison_df['標竿群組平均撥打數'] = 0
+
+    comparison_df = comparison_df.sort_values('Time_Interval')
+
+    base = alt.Chart(comparison_df).encode(x=alt.X('Time_Interval', title="時間區間", sort=None))
+    bar = base.mark_bar().encode(
+        y=alt.Y('個人撥打數', title='撥打數'),
+        tooltip=[alt.Tooltip('Time_Interval', title='時間'), alt.Tooltip('個人撥打數', title='個人撥打數')]
+    )
+    
+    chart_layers = [bar]
+    if not df_benchmark.empty:
+        line = base.mark_line(color='red', strokeDash=[5,5]).encode(
+            y=alt.Y('標竿群組平均撥打數', title='撥打數'),
+        )
+        # --- 【互動優化 V4.3】 新增紅色互動節點 ---
+        points = base.mark_point(color='red', filled=True, size=60).encode(
+            y=alt.Y('標竿群組平均撥打數'),
+            tooltip=[alt.Tooltip('Time_Interval', title='時間'), alt.Tooltip('標竿群組平均撥打數', title='標竿平均', format='.1f')]
+        )
+        chart_layers.extend([line, points])
+
+    st.altair_chart(
+        alt.layer(*chart_layers).resolve_scale(y='shared'),
+        use_container_width=True
+    )
+
+    # --- 2. 通話時長分析 (個人 vs. 標竿群組平均) ---
+    st.subheader(f"通話時長模式分析：{selected_agent} vs. 標竿群組")
+
+    def categorize_talk_duration(seconds):
+        if seconds <= 5: return "~5秒"
+        elif 5 < seconds <= 10: return "5秒 - 10秒"
+        elif 10 < seconds <= 30: return "10秒 - 30秒"
+        elif 30 < seconds <= 60: return "30秒 - 1分鐘"
+        elif 60 < seconds <= 120: return "1分鐘 - 2分鐘"
+        elif 120 < seconds <= 180: return "2分鐘 - 3分鐘"
+        else: return "3分鐘以上"
+    
+    category_order = ["~5秒", "5秒 - 10秒", "10秒 - 30秒", "30秒 - 1分鐘", "1分鐘 - 2分鐘", "2分鐘 - 3分鐘", "3分鐘以上"]
+
+    df_agent_valid_talk = df_agent[df_agent['Talk Durations'].dt.total_seconds() > 0]
+    if not df_agent_valid_talk.empty:
+        df_agent_valid_talk['Category'] = df_agent_valid_talk['Talk Durations'].dt.total_seconds().apply(categorize_talk_duration)
+        agent_duration_dist = df_agent_valid_talk['Category'].value_counts(normalize=True).reset_index()
+        agent_duration_dist.columns = ['Category', '個人比例']
+    else:
+        agent_duration_dist = pd.DataFrame(columns=['Category', '個人比例'])
+
+    if not df_benchmark.empty:
+        df_benchmark_valid_talk = df_benchmark[df_benchmark['Talk Durations'].dt.total_seconds() > 0]
+        if not df_benchmark_valid_talk.empty:
+            df_benchmark_valid_talk['Category'] = df_benchmark_valid_talk['Talk Durations'].dt.total_seconds().apply(categorize_talk_duration)
+            benchmark_duration_dist = df_benchmark_valid_talk['Category'].value_counts(normalize=True).reset_index()
+            benchmark_duration_dist.columns = ['Category', '標竿群組平均比例']
+            duration_comparison_df = pd.merge(agent_duration_dist, benchmark_duration_dist, on='Category', how='outer').fillna(0)
+        else:
+            duration_comparison_df = agent_duration_dist
+            duration_comparison_df['標竿群組平均比例'] = 0
+    else:
+        duration_comparison_df = agent_duration_dist
+        duration_comparison_df['標竿群組平均比例'] = 0
+
+    base_dur = alt.Chart(duration_comparison_df).encode(x=alt.X('Category', title="通話時長區間", sort=category_order, axis=alt.Axis(labelAngle=0)))
+    bar_dur = base_dur.mark_bar().encode(
+        y=alt.Y('個人比例', title='比例', axis=alt.Axis(format='%')),
+        tooltip=[alt.Tooltip('Category', title='時長區間'), alt.Tooltip('個人比例', title='個人比例', format='.1%')]
+    )
+    
+    chart_dur_layers = [bar_dur]
+    if not df_benchmark.empty:
+        line_dur = base_dur.mark_line(color='red', strokeDash=[5,5]).encode(
+            y=alt.Y('標竿群組平均比例', title='比例', axis=alt.Axis(format='%')),
+        )
+        points_dur = base_dur.mark_point(color='red', filled=True, size=60).encode(
+            y=alt.Y('標竿群組平均比例'),
+            tooltip=[alt.Tooltip('Category', title='時長區間'), alt.Tooltip('標竿群組平均比例', title='標竿平均', format='.1%')]
+        )
+        chart_dur_layers.extend([line_dur, points_dur])
+
+    st.altair_chart(
+        alt.layer(*chart_dur_layers).resolve_scale(y='shared'),
+        use_container_width=True
+    )
+
 # --- 主應用程式 ---
 def main():
     df = load_data("consolidated_report.csv")
@@ -458,7 +597,7 @@ def main():
         st.sidebar.header("選擇檢視模式")
         view_mode = st.sidebar.radio(
             "",
-            ["催員每日撥打狀況報告", "月度催員接通數儀表板", "催員催收行為分析", "催員時點撥打與接通分析"],
+            ["催員每日撥打狀況報告", "月度催員接通數儀表板", "催員催收行為分析", "催員時點撥打與接通分析", "催員行為與高績效人員比較"],
             label_visibility="collapsed"
         )
 
@@ -479,6 +618,8 @@ def main():
             display_behavior_analysis_view(df, selected_group)
         elif view_mode == "催員時點撥打與接通分析":
             display_call_time_analysis_view(df, selected_group)
+        elif view_mode == "催員行為與高績效人員比較":
+            display_profiling_view(df, selected_group)
 
 if __name__ == "__main__":
     main()
