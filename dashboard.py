@@ -263,28 +263,29 @@ def display_call_time_analysis_view(df):
     )
 
     # 根據時間粒度計算時間區間
-    df_filtered['Call_Time'] = df_filtered['Call Assigned'].dt.time
-    df_filtered['Time_Interval'] = df_filtered['Call Assigned'].dt.floor('H') # 預設小時
-
-    if time_granularity == "30分鐘":
-        df_filtered['Time_Interval'] = df_filtered['Call Assigned'].dt.floor('30min')
+    if time_granularity == "小時":
+        df_filtered['Time_Interval_Label'] = df_filtered['Call Assigned'].dt.strftime('%H:00')
+    elif time_granularity == "30分鐘":
+        df_filtered['Time_Interval_Label'] = df_filtered['Call Assigned'].dt.floor('30min').dt.strftime('%H:%M')
     elif time_granularity == "15分鐘":
-        df_filtered['Time_Interval'] = df_filtered['Call Assigned'].dt.floor('15min')
+        df_filtered['Time_Interval_Label'] = df_filtered['Call Assigned'].dt.floor('15min').dt.strftime('%H:%M')
 
     # 計算每個時間區間的撥出數、接通數和接通率
-    hourly_stats = df_filtered.groupby('Time_Interval').agg(
+    hourly_stats = df_filtered.groupby('Time_Interval_Label').agg(
         Total_Outbound_Calls=('Case No', 'size'),
         Total_Connected_Calls=('Connected', 'sum')
     ).reset_index()
+
+    # Sort by time label to ensure correct order on chart
+    # Convert to datetime for sorting, then back to time string for display
+    hourly_stats['Time_Interval_Sort'] = pd.to_datetime(hourly_stats['Time_Interval_Label'], format='%H:%M').dt.time
+    hourly_stats = hourly_stats.sort_values('Time_Interval_Sort').drop(columns='Time_Interval_Sort')
 
     hourly_stats['Connection_Rate'] = np.where(
         hourly_stats['Total_Outbound_Calls'] > 0,
         hourly_stats['Total_Connected_Calls'] / hourly_stats['Total_Outbound_Calls'],
         0
     )
-
-    # 格式化時間區間顯示
-    hourly_stats['Time_Label'] = hourly_stats['Time_Interval'].dt.strftime('%H:%M')
 
     # 選擇顯示模式
     display_mode = st.radio(
@@ -298,33 +299,33 @@ def display_call_time_analysis_view(df):
 
     if display_mode == "總撥出電話數":
         chart = alt.Chart(hourly_stats).mark_bar().encode(
-            x=alt.X('Time_Label', sort=None, title="時間區間"),
+            x=alt.X('Time_Interval_Label', sort=None, title="時間區間"),
             y=alt.Y('Total_Outbound_Calls', title="總撥出電話數"),
-            tooltip=['Time_Label', 'Total_Outbound_Calls']
+            tooltip=['Time_Interval_Label', 'Total_Outbound_Calls']
         ).properties(
             title=f"{selected_agent} 總撥出電話數 ({time_granularity})"
         )
     elif display_mode == "總接通電話數":
         chart = alt.Chart(hourly_stats).mark_bar().encode(
-            x=alt.X('Time_Label', sort=None, title="時間區間"),
+            x=alt.X('Time_Interval_Label', sort=None, title="時間區間"),
             y=alt.Y('Total_Connected_Calls', title="總接通電話數"),
-            tooltip=['Time_Label', 'Total_Connected_Calls']
+            tooltip=['Time_Interval_Label', 'Total_Connected_Calls']
         ).properties(
             title=f"{selected_agent} 總接通電話數 ({time_granularity})"
         )
     else: # 綜合分析
         chart = alt.Chart(hourly_stats).mark_bar().encode(
-            x=alt.X('Time_Label', sort=None, title="時間區間"),
+            x=alt.X('Time_Interval_Label', sort=None, title="時間區間"),
             y=alt.Y('Total_Outbound_Calls', title="總撥出電話數"),
-            color=alt.Color('Connection_Rate', scale=alt.Scale(range='heatmap'), title="接通率"),
-            tooltip=['Time_Label', 'Total_Outbound_Calls', 'Total_Connected_Calls', alt.Tooltip('Connection_Rate', format='.1%')]
+            color=alt.Color('Connection_Rate', scale=alt.Scale(scheme='RdYlGn', reverse=True), title="接通率"), # Green to Red
+            tooltip=['Time_Interval_Label', 'Total_Outbound_Calls', 'Total_Connected_Calls', alt.Tooltip('Connection_Rate', format='.1%')]
         ).properties(
             title=f"{selected_agent} 撥出電話數與接通率 ({time_granularity})"
         )
     st.altair_chart(chart, use_container_width=True)
 
     st.subheader("詳細數據")
-    st.dataframe(hourly_stats[['Time_Label', 'Total_Outbound_Calls', 'Total_Connected_Calls', 'Connection_Rate']].style.format({'Connection_Rate': '{:.1%}'}), use_container_width=True, hide_index=True)
+    st.dataframe(hourly_stats[['Time_Interval_Label', 'Total_Outbound_Calls', 'Total_Connected_Calls', 'Connection_Rate']].style.format({'Connection_Rate': '{:.1%}'}), use_container_width=True, hide_index=True)
 
 
 # --- 主應用程式 ---
