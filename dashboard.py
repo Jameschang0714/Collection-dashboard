@@ -218,6 +218,116 @@ def display_monthly_view(df, selected_group, thresholds):
                 column_config={"Group": None}
             )
 
+def display_behavior_analysis_view(df):
+    """催員催收行為分析視圖"""
+    st.header("催員催收行為分析")
+
+    # 1. UI 過濾器
+    agent_list = sorted(df['Agent Name'].unique())
+    if not agent_list:
+        st.info("資料中沒有任何催員可供分析。")
+        return
+    selected_agent = st.selectbox("選擇催員", agent_list, key="behavior_agent_select")
+
+    analysis_period = st.radio("選擇分析區間", ["單日分析", "月份分析"], horizontal=True, key="behavior_period")
+
+    df_agent = df[df['Agent Name'] == selected_agent].copy()
+
+    # 2. 根據選擇的區間過濾資料
+    if analysis_period == "單日分析":
+        available_dates = sorted(df_agent['Date'].dt.date.unique(), reverse=True)
+        if not available_dates:
+            st.warning(f"催員 {selected_agent} 在選定的時間範圍內沒有通話紀錄。")
+            return
+        selected_date = st.selectbox("選擇日期", available_dates, key="behavior_date_select")
+        df_filtered = df_agent[df_agent['Date'].dt.date == selected_date]
+    else:  # 月份分析
+        available_months = sorted(df_agent['Date'].dt.month.unique())
+        if not available_months:
+            st.warning(f"催員 {selected_agent} 在選定的時間範圍內沒有通話紀錄。")
+            return
+        selected_month = st.selectbox("選擇月份", available_months, format_func=lambda x: f"2025-{x:02d}", key="behavior_month_select")
+        df_filtered = df_agent[df_agent['Date'].dt.month == selected_month]
+
+    if df_filtered.empty:
+        st.info("在選定的時間範圍內，這位催員沒有通話紀錄。")
+        return
+
+    # 排除通話時長為 0 秒的紀錄
+    df_filtered = df_filtered[df_filtered['Talk Durations'].dt.total_seconds() > 0].copy()
+    if df_filtered.empty:
+        st.info("在選定的時間範圍內，這位催員沒有有效通話時長紀錄。")
+        return
+
+    # 3. 固定規則分類
+    def categorize_talk_duration(seconds):
+        if seconds <= 5:
+            return "~5秒"
+        elif 5 < seconds <= 10:
+            return "5秒 - 10秒"
+        elif 10 < seconds <= 30:
+            return "10秒 - 30秒"
+        elif 30 < seconds <= 60:
+            return "30秒 - 1分鐘"
+        elif 60 < seconds <= 120:
+            return "1分鐘 - 2分鐘"
+        elif 120 < seconds <= 180:
+            return "2分鐘 - 3分鐘"
+        else:
+            return "3分鐘以上"
+
+    df_filtered['Talk_Duration_Category'] = df_filtered['Talk Durations'].dt.total_seconds().apply(categorize_talk_duration)
+
+    # 4. 計算每個類別的通話筆數
+    category_counts = df_filtered['Talk_Duration_Category'].value_counts().reset_index()
+    category_counts.columns = ['Category', 'Count']
+
+    # 定義排序順序
+    category_order = ["~5秒", "5秒 - 10秒", "10秒 - 30秒", "30秒 - 1分鐘", "1分鐘 - 2分鐘", "2分鐘 - 3分鐘", "3分鐘以上"]
+    category_counts['Category'] = pd.Categorical(category_counts['Category'], categories=category_order, ordered=True)
+    category_counts = category_counts.sort_values('Category')
+
+    # 計算比例
+    total_calls = category_counts['Count'].sum()
+    category_counts['Percentage'] = (category_counts['Count'] / total_calls) if total_calls > 0 else 0
+
+    # Y 軸顯示選項
+    y_axis_option = st.radio(
+        "選擇 Y 軸顯示方式",
+        ["通話筆數", "通話比例"],
+        horizontal=True,
+        key="behavior_y_axis_option"
+    )
+
+    # 5. 視覺化呈現
+    if y_axis_option == "通話筆數":
+        y_field = 'Count'
+        y_title = '通話筆數'
+        y_axis_format = 's'
+        tooltip_format = ''
+    else:
+        y_field = 'Percentage'
+        y_title = '通話比例'
+        y_axis_format = '%'
+        tooltip_format = '.1%'
+
+    chart = alt.Chart(category_counts).mark_bar().encode(
+        x=alt.X('Category', sort=category_order, title="通話時長區間", axis=alt.Axis(labelAngle=0)),
+        y=alt.Y(y_field, title=y_title, axis=alt.Axis(format=y_axis_format)),
+        tooltip=[
+            alt.Tooltip('Category', title='時長區間'),
+            alt.Tooltip('Count', title='通話筆數'),
+            alt.Tooltip('Percentage', title='通話比例', format='.1%')
+        ]
+    ).properties(
+        title=f"{selected_agent} 通話時長分佈"
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+    # 6. 詳細數據表格
+    st.subheader("詳細數據")
+    st.dataframe(category_counts.style.format({'Percentage': '{:.1%}'}), use_container_width=True, hide_index=True)
+
 def display_call_time_analysis_view(df):
     """新增的催員時點撥打與接通分析視圖"""
     st.header("催員時點撥打與接通分析")
@@ -299,7 +409,7 @@ def display_call_time_analysis_view(df):
 
     if display_mode == "總撥出電話數":
         chart = alt.Chart(hourly_stats).mark_bar().encode(
-            x=alt.X('Time_Interval_Label', sort=None, title="時間區間"),
+            x=alt.X('Time_Interval_Label', sort=None, title="時間區間", axis=alt.Axis(labelAngle=0)),
             y=alt.Y('Total_Outbound_Calls', title="總撥出電話數"),
             tooltip=['Time_Interval_Label', 'Total_Outbound_Calls']
         ).properties(
@@ -307,7 +417,7 @@ def display_call_time_analysis_view(df):
         )
     elif display_mode == "總接通電話數":
         chart = alt.Chart(hourly_stats).mark_bar().encode(
-            x=alt.X('Time_Interval_Label', sort=None, title="時間區間"),
+            x=alt.X('Time_Interval_Label', sort=None, title="時間區間", axis=alt.Axis(labelAngle=0)),
             y=alt.Y('Total_Connected_Calls', title="總接通電話數"),
             tooltip=['Time_Interval_Label', 'Total_Connected_Calls']
         ).properties(
@@ -315,9 +425,9 @@ def display_call_time_analysis_view(df):
         )
     else: # 綜合分析
         chart = alt.Chart(hourly_stats).mark_bar().encode(
-            x=alt.X('Time_Interval_Label', sort=None, title="時間區間"),
+            x=alt.X('Time_Interval_Label', sort=None, title="時間區間", axis=alt.Axis(labelAngle=0)),
             y=alt.Y('Total_Outbound_Calls', title="總撥出電話數"),
-            color=alt.Color('Connection_Rate', scale=alt.Scale(domain=[0, 1], range='redgreen'), title="接通率"),
+            color=alt.Color('Connection_Rate', scale=alt.Scale(domain=[0, 1], range='heatmap'), title="接通率"),
             tooltip=['Time_Interval_Label', 'Total_Outbound_Calls', 'Total_Connected_Calls', alt.Tooltip('Connection_Rate', format='.1%')]
         ).properties(
             title=f"{selected_agent} 撥出電話數與接通率 ({time_granularity})"
@@ -330,8 +440,8 @@ def display_call_time_analysis_view(df):
 
 # --- 主應用程式 ---
 def main():
-    df = load_data("consolidated_report.csv")
-    thresholds = load_thresholds("各組每日撥通數上下限.xlsx")
+    df = load_data("C:\\Users\\KH00002\\電催過程指標追蹤\\consolidated_report.csv")
+    thresholds = load_thresholds("C:\\Users\\KH00002\\電催過程指標追蹤\\各組每日撥通數上下限.xlsx")
 
     if df is not None:
         st.sidebar.header("選擇檢視模式")
