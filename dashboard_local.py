@@ -3,7 +3,18 @@ import pandas as pd
 import numpy as np
 import altair as alt
 import os
+import io
+import gdown
+import json
 
+# --- 頁面配置 ---
+st.set_page_config(
+    page_title="電話催收過程指標追蹤儀表板 (生產環境)",
+    page_icon="☁️",
+    layout="wide"
+)
+
+<<<<<<<< HEAD:dashboard_local.py
 # --- 頁面配置 ---
 st.set_page_config(
     page_title="電話催收過程指標追蹤儀表板",
@@ -11,6 +22,8 @@ st.set_page_config(
     layout="wide"
 )
 
+========
+>>>>>>>> 9f1400c769e56b5bb849c96fec09de779a1cfd1c:dashboard_cloud.py
 # --- 自定義組別排序 ---
 CUSTOM_GROUP_ORDER = [
     "Motor M1 Team1", "Motor M1 Team2", "Motor M1 Team3", "Motor M1 Team4",
@@ -27,6 +40,7 @@ def format_timedelta(td):
     minutes, seconds = divmod(remainder, 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
+<<<<<<<< HEAD:dashboard_local.py
 # --- 【架構調整 V5.1】從本地端檔案路徑載入數據 ---
 @st.cache_data
 def load_data(file_path):
@@ -37,12 +51,43 @@ def load_data(file_path):
     try:
         df = pd.read_csv(file_path)
         st.success(f"已成功從本地路徑載入資料： {file_path}")
+========
+# --- 【架構 V6.0】從雲端 Google Drive 載入數據 (生產環境專用) ---
+@st.cache_data(ttl=600) # 快取 10 分鐘
+def load_data():
+    """
+    使用 GCP 服務帳號憑證，安全地從 Google Drive 下載大型數據檔案。
+    此函數專為 Streamlit Community Cloud 生產環境設計。
+    """
+    try:
+        # 從 Streamlit Secrets 讀取 GCP 憑證
+        if 'gcp_service_account' not in st.secrets or 'credentials' not in st.secrets.gcp_service_account:
+            st.error("錯誤：找不到 GCP 服務帳號憑證。請確認已在 Streamlit Cloud 中設定 Secrets。")
+            return None
+            
+        creds_json_str = st.secrets.gcp_service_account.credentials
+        creds_dict = json.loads(creds_json_str)
+
+        # Google Drive 檔案的 File ID
+        file_id = "1O9Po49F7TkV4c_Q8Y0yaufhI15HFKGyT"
+
+        # 使用 gdown 搭配服務帳號憑證下載檔案至記憶體
+        output = io.BytesIO()
+        gdown.download(id=file_id, output=output, use_cookies=False, quiet=True, fuzzy=True, credentials=creds_dict)
+        output.seek(0)
+
+        # 從記憶體中的 bytes 直接讀取 CSV
+        df = pd.read_csv(output)
+>>>>>>>> 9f1400c769e56b5bb849c96fec09de779a1cfd1c:dashboard_cloud.py
         
         # --- 後續資料預處理 ---
         df['Date'] = pd.to_datetime(df['Date'])
         df['Talk Durations'] = pd.to_timedelta(df['Talk Durations'].fillna('00:00:00'), errors='coerce')
         df['Call Assigned'] = pd.to_datetime(df['Call Assigned'])
+        
+        st.success("數據已從 Google Drive 安全載入。")
         return df
+<<<<<<<< HEAD:dashboard_local.py
         
     except FileNotFoundError:
         st.error(f"錯誤：找不到指定的檔案 '{file_path}'。")
@@ -50,6 +95,12 @@ def load_data(file_path):
         return None
     except Exception as e:
         st.error(f"讀取或處理檔案時發生未知錯誤：{e}")
+========
+
+    except Exception as e:
+        st.error(f"透過服務帳號載入 Google Drive 資料時發生錯誤：{e}")
+        st.info("請確認：\n1. Streamlit Cloud Secrets 中的憑證是否正確。\n2. Google Drive 檔案是否已與服務帳號的 Email 分享（權限為'檢視者'）。\n3. 檔案 ID 是否正確。")
+>>>>>>>> 9f1400c769e56b5bb849c96fec09de779a1cfd1c:dashboard_cloud.py
         return None
 
 
@@ -67,7 +118,11 @@ def load_thresholds(path):
         st.error(f"載入績效上下限設定檔時發生錯誤：{e}")
         return None
 
+<<<<<<<< HEAD:dashboard_local.py
 # --- 顯示模式 (此處及以下的顯示函數維持不變) ---
+========
+# --- 顯示模式 (所有 display_... 函數與本地版完全相同) ---
+>>>>>>>> 9f1400c769e56b5bb849c96fec09de779a1cfd1c:dashboard_cloud.py
 def display_daily_view(df, selected_group, thresholds):
     st.header("催員每日撥打狀況報告")
     
