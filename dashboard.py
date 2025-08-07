@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
+import os
 
 # --- 自定義組別排序 ---
 CUSTOM_GROUP_ORDER = [
@@ -31,6 +32,8 @@ def format_timedelta(td):
 def load_data(path):
     """載入並預處理主要通話資料。"""
     try:
+        # Get file modification time to use as part of the cache key
+        file_mtime = os.path.getmtime(path)
         df = pd.read_csv(path)
         df['Date'] = pd.to_datetime(df['Date'])
         df['Talk Durations'] = pd.to_timedelta(df['Talk Durations'].fillna('00:00:00'), errors='coerce')
