@@ -2,5 +2,6 @@ streamlit
 pandas
 numpy
 altair
-gdown>=4.4.0
 openpyxl
+google-api-python-client
+google-auth-oauthlib

@@ -4,8 +4,12 @@ import numpy as np
 import altair as alt
 import os
 import io
-import gdown
 import json
+
+# --- 【V7.0 升級】導入 Google 官方 API 函式庫 ---
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 
 # --- 頁面配置 ---
 st.set_page_config(
@@ -30,44 +34,58 @@ def format_timedelta(td):
     minutes, seconds = divmod(remainder, 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-# --- 【架構 V6.0】從雲端 Google Drive 載入數據 (生產環境專用) ---
+# --- 【架構 V7.0】透過 Google 官方 API 載入數據 ---
 @st.cache_data(ttl=600) # 快取 10 分鐘
 def load_data():
     """
-    使用 GCP 服務帳號憑證，安全地從 Google Drive 下載大型數據檔案。
-    此函數專為 Streamlit Community Cloud 生產環境設計。
+    使用 Google 官方 API Client，透過服務帳號憑證，安全地從 Google Drive 下載檔案。
+    這是最穩健、最可靠的雲端數據接口。
     """
     try:
         # 從 Streamlit Secrets 讀取 GCP 憑證
-        if 'gcp_service_account' not in st.secrets or 'credentials' not in st.secrets.gcp_service_account:
-            st.error("錯誤：找不到 GCP 服務帳號憑證。請確認已在 Streamlit Cloud 中設定 Secrets。")
-            return None
-            
-        creds_json_str = st.secrets.gcp_service_account.credentials
-        creds_dict = json.loads(creds_json_str)
+        creds_json = json.loads(st.secrets.gcp_service_account.credentials)
+        
+        # 建立憑證物件
+        creds = service_account.Credentials.from_service_account_info(
+            creds_json,
+            scopes=['https://www.googleapis.com/auth/drive.readonly']
+        )
+        
+        # 建立 Google Drive API 服務物件
+        service = build('drive', 'v3', credentials=creds)
 
         # Google Drive 檔案的 File ID
         file_id = "1O9Po49F7TkV4c_Q8Y0yaufhI15HFKGyT"
 
-        # 使用 gdown 搭配服務帳號憑證下載檔案至記憶體
-        output = io.BytesIO()
-        gdown.download(id=file_id, output=output, use_cookies=False, quiet=True, fuzzy=True, credentials=creds_dict)
-        output.seek(0)
+        # 請求檔案元數據
+        request = service.files().get_media(fileId=file_id)
+        
+        # 準備一個記憶體中的二進位檔案來接收數據
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        
+        # 執行下載
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
 
+        # 將指標移至檔案開頭以便讀取
+        fh.seek(0)
+        
         # 從記憶體中的 bytes 直接讀取 CSV
-        df = pd.read_csv(output)
+        df = pd.read_csv(fh)
         
         # --- 後續資料預處理 ---
         df['Date'] = pd.to_datetime(df['Date'])
         df['Talk Durations'] = pd.to_timedelta(df['Talk Durations'].fillna('00:00:00'), errors='coerce')
         df['Call Assigned'] = pd.to_datetime(df['Call Assigned'])
         
-        st.success("數據已從 Google Drive 安全載入。")
+        st.success("數據已透過 Google 官方 API 安全載入。")
         return df
 
     except Exception as e:
-        st.error(f"透過服務帳號載入 Google Drive 資料時發生錯誤：{e}")
-        st.info("請確認：\n1. Streamlit Cloud Secrets 中的憑證是否正確。\n2. Google Drive 檔案是否已與服務帳號的 Email 分享（權限為'檢視者'）。\n3. 檔案 ID 是否正確。")
+        st.error(f"透過 Google 官方 API 載入資料時發生錯誤：")
+        st.exception(e) # 使用 st.exception() 可以顯示更詳細的錯誤追蹤日誌
         return None
 
 
@@ -85,7 +103,7 @@ def load_thresholds(path):
         st.error(f"載入績效上下限設定檔時發生錯誤：{e}")
         return None
 
-# --- 顯示模式 (所有 display_... 函數與本地版完全相同) ---
+# --- 顯示模式 ---
 def display_daily_view(df, selected_group, thresholds):
     st.header("催員每日撥打狀況報告")
     
@@ -627,7 +645,6 @@ def display_profiling_view(df, selected_group):
 def main():
     st.title("電話催收過程指標追蹤儀表板")
     
-    # --- 【V6.1 修正】確保以無參數方式呼叫雲端專用函數 ---
     df = load_data()
     thresholds = load_thresholds("各組每日撥通數上下限.xlsx")
 
