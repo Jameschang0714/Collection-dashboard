@@ -1,0 +1,14 @@
+# Python virtual environment
+venv/
+*.pyc
+
+# Data files
+*.csv
+*.xlsx
+每日資料底稿/
+
+# Credentials
+chailease-bi-dashboard-b07fd9311a46.json
+
+# Streamlit
+.streamlit/

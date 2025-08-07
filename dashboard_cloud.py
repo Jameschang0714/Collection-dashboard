@@ -3,19 +3,22 @@ import pandas as pd
 import numpy as np
 import altair as alt
 import os
+import io
+import gdown
+import json
+
+# --- 頁面配置 ---
+st.set_page_config(
+    page_title="電話催收過程指標追蹤儀表板 (生產環境)",
+    page_icon="☁️",
+    layout="wide"
+)
 
 # --- 自定義組別排序 ---
 CUSTOM_GROUP_ORDER = [
     "Motor M1 Team1", "Motor M1 Team2", "Motor M1 Team3", "Motor M1 Team4",
     "SR Team", "Vehicle M1", "Motor M2", "Vehicle M2", "M3", "Write off"
 ]
-
-# --- 頁面配置 ---
-st.set_page_config(
-    page_title="電話催收過程指標追蹤儀表板",
-    page_icon="🎯",
-    layout="wide"
-)
 
 # --- 輔助函數 ---
 def format_timedelta(td):
@@ -27,22 +30,46 @@ def format_timedelta(td):
     minutes, seconds = divmod(remainder, 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-# --- 資料載入與快取 ---
-@st.cache_data
-def load_data(path):
-    """載入並預處理主要通話資料。"""
+# --- 【架構 V6.0】從雲端 Google Drive 載入數據 (生產環境專用) ---
+@st.cache_data(ttl=600) # 快取 10 分鐘
+def load_data():
+    """
+    使用 GCP 服務帳號憑證，安全地從 Google Drive 下載大型數據檔案。
+    此函數專為 Streamlit Community Cloud 生產環境設計。
+    """
     try:
-        df = pd.read_csv(path)
+        # 從 Streamlit Secrets 讀取 GCP 憑證
+        if 'gcp_service_account' not in st.secrets or 'credentials' not in st.secrets.gcp_service_account:
+            st.error("錯誤：找不到 GCP 服務帳號憑證。請確認已在 Streamlit Cloud 中設定 Secrets。")
+            return None
+            
+        creds_json_str = st.secrets.gcp_service_account.credentials
+        creds_dict = json.loads(creds_json_str)
+
+        # Google Drive 檔案的 File ID
+        file_id = "1O9Po49F7TkV4c_Q8Y0yaufhI15HFKGyT"
+
+        # 使用 gdown 搭配服務帳號憑證下載檔案至記憶體
+        output = io.BytesIO()
+        gdown.download(id=file_id, output=output, use_cookies=False, quiet=True, fuzzy=True, credentials=creds_dict)
+        output.seek(0)
+
+        # 從記憶體中的 bytes 直接讀取 CSV
+        df = pd.read_csv(output)
+        
+        # --- 後續資料預處理 ---
         df['Date'] = pd.to_datetime(df['Date'])
         df['Talk Durations'] = pd.to_timedelta(df['Talk Durations'].fillna('00:00:00'), errors='coerce')
         df['Call Assigned'] = pd.to_datetime(df['Call Assigned'])
+        
+        st.success("數據已從 Google Drive 安全載入。")
         return df
-    except FileNotFoundError:
-        st.error(f"錯誤：找不到資料檔案於 '{path}'。請確認檔案存在並重新整理。")
-        return None
+
     except Exception as e:
-        st.error(f"載入資料時發生錯誤：{e}")
+        st.error(f"透過服務帳號載入 Google Drive 資料時發生錯誤：{e}")
+        st.info("請確認：\n1. Streamlit Cloud Secrets 中的憑證是否正確。\n2. Google Drive 檔案是否已與服務帳號的 Email 分享（權限為'檢視者'）。\n3. 檔案 ID 是否正確。")
         return None
+
 
 @st.cache_data
 def load_thresholds(path):
@@ -58,7 +85,7 @@ def load_thresholds(path):
         st.error(f"載入績效上下限設定檔時發生錯誤：{e}")
         return None
 
-# --- 顯示模式 ---
+# --- 顯示模式 (所有 display_... 函數與本地版完全相同) ---
 def display_daily_view(df, selected_group, thresholds):
     st.header("催員每日撥打狀況報告")
     
@@ -439,7 +466,6 @@ def display_call_time_analysis_view(df, selected_group):
         hide_index=True
     )
 
-# --- V4.0 新增分析模組 ---
 def display_profiling_view(df, selected_group):
     st.header("催員行為與高績效人員比較 (Agent vs. Benchmark)")
 
@@ -451,8 +477,6 @@ def display_profiling_view(df, selected_group):
         st.info(f"團隊 '{selected_group}' 中沒有可用的資料。")
         return
         
-    # --- 【UX 優化 V4.4】 狀態保持與佈局優化 ---
-    # 初始化 session_state
     if 'profiling_benchmark_select' not in st.session_state:
         st.session_state.profiling_benchmark_select = []
 
@@ -460,9 +484,7 @@ def display_profiling_view(df, selected_group):
     with col1:
         selected_agent = st.selectbox("選擇要分析的催員", agent_list, key="profiling_agent_select")
     
-    # 當分析對象改變時，確保他不會出現在標竿群組的選項與已選項目中
     benchmark_options = [agent for agent in agent_list if agent != selected_agent]
-    # 過濾掉 session_state 中無效的選項 (即剛被選為分析對象的催員)
     st.session_state.profiling_benchmark_select = [
         agent for agent in st.session_state.profiling_benchmark_select if agent in benchmark_options
     ]
@@ -501,7 +523,6 @@ def display_profiling_view(df, selected_group):
     if benchmark_agents:
         df_benchmark = df_period[df_period['Agent Name'].isin(benchmark_agents)]
 
-    # --- 1. 通話時點分析 (個人 vs. 標竿群組平均) ---
     st.subheader(f"通話時點模式分析：{selected_agent} vs. 標竿群組")
 
     df_agent['Time_Interval'] = df_agent['Call Assigned'].dt.floor('H').dt.strftime('%H:00')
@@ -522,7 +543,6 @@ def display_profiling_view(df, selected_group):
 
     comparison_df = comparison_df.sort_values('Time_Interval')
 
-    # --- 【UX 優化 V4.4】 X軸標籤改為水平 ---
     base = alt.Chart(comparison_df).encode(x=alt.X('Time_Interval', title="時間區間", sort=None, axis=alt.Axis(labelAngle=0)))
     bar = base.mark_bar().encode(
         y=alt.Y('個人撥打數', title='撥打數'),
@@ -545,7 +565,6 @@ def display_profiling_view(df, selected_group):
         use_container_width=True
     )
 
-    # --- 2. 通話時長分析 (個人 vs. 標竿群組平均) ---
     st.subheader(f"通話時長模式分析：{selected_agent} vs. 標竿群組")
 
     def categorize_talk_duration(seconds):
@@ -603,9 +622,13 @@ def display_profiling_view(df, selected_group):
         use_container_width=True
     )
 
+
 # --- 主應用程式 ---
 def main():
-    df = load_data("consolidated_report.csv")
+    st.title("電話催收過程指標追蹤儀表板")
+    
+    # --- 【V6.1 修正】確保以無參數方式呼叫雲端專用函數 ---
+    df = load_data()
     thresholds = load_thresholds("各組每日撥通數上下限.xlsx")
 
     if df is not None:
@@ -635,6 +658,9 @@ def main():
             display_call_time_analysis_view(df, selected_group)
         elif view_mode == "催員行為與高績效人員比較":
             display_profiling_view(df, selected_group)
+        
+    else:
+        st.warning("資料未能成功載入，請根據上方的錯誤訊息檢查您的設定。")
 
 if __name__ == "__main__":
     main()
