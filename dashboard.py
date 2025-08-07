@@ -242,7 +242,7 @@ def display_behavior_analysis_view(df):
         df_filtered = df_agent[df_agent['Date'].dt.date == selected_date]
     else:  # 月份分析
         available_months = sorted(df_agent['Date'].dt.month.unique())
-        st.write(f"月份分析可用月份: {available_months}")
+        
         if not available_months:
             st.warning(f"催員 {selected_agent} 沒有任何通話紀錄。")
             return
@@ -276,16 +276,36 @@ def display_behavior_analysis_view(df):
     
     # 5. 視覺化呈現
     st.subheader(f"{selected_agent} 的通話時長分佈")
+
+    y_axis_mode = st.radio(
+        "選擇 Y 軸顯示方式",
+        ["通話筆數", "通話比例"],
+        horizontal=True,
+        key="y_axis_mode"
+    )
     
     chart_data = pd.DataFrame({
         "通話區間": call_counts.index,
-        "通話數": call_counts.values.astype(int)
+        "通話筆數": call_counts.values.astype(int)
     })
+
+    if y_axis_mode == "通話比例":
+        total_calls = chart_data["通話筆數"].sum()
+        chart_data["通話比例"] = (chart_data["通話筆數"] / total_calls).fillna(0)
+        y_field = "通話比例"
+        y_title = "通話比例"
+        y_axis = alt.Axis(format=".1%")
+        tooltip_content = ['通話區間', alt.Tooltip('通話比例', format=".1%")]
+    else:
+        y_field = "通話筆數"
+        y_title = "通話筆數"
+        y_axis = alt.Axis()
+        tooltip_content = ['通話區間', '通話筆數']
 
     chart = alt.Chart(chart_data).mark_bar().encode(
         x=alt.X('通話區間', sort=labels, title="通話時長區間", axis=alt.Axis(labelAngle=0)),
-        y=alt.Y('通話數', title="通話筆數"),
-        tooltip=['通話區間', '通話數']
+        y=alt.Y(y_field, title=y_title, axis=y_axis),
+        tooltip=tooltip_content
     ).properties(
         title=f"{selected_agent} 在選定時間內的通話時長分佈"
     )
@@ -293,7 +313,11 @@ def display_behavior_analysis_view(df):
     st.altair_chart(chart, use_container_width=True)
 
     st.subheader("詳細數據")
-    st.dataframe(chart_data, use_container_width=True, hide_index=True)
+    # 根據選擇的模式顯示不同的數據框
+    if y_axis_mode == "通話比例":
+        st.dataframe(chart_data[['通話區間', '通話筆數', '通話比例']].style.format({'通話比例': '{:.1%}'}), use_container_width=True, hide_index=True)
+    else:
+        st.dataframe(chart_data[['通話區間', '通話筆數']], use_container_width=True, hide_index=True)
 
 
 # --- 主應用程式 ---
