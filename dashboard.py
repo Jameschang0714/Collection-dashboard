@@ -36,6 +36,8 @@ def load_data(path):
         df = pd.read_csv(path)
         df['Date'] = pd.to_datetime(df['Date'])
         df['Talk Durations'] = pd.to_timedelta(df['Talk Durations'].fillna('00:00:00'), errors='coerce')
+        # 新增：解析 Call Assigned 欄位為日期時間物件
+        df['Call Assigned'] = pd.to_datetime(df['Call Assigned'])
         return df
     except FileNotFoundError:
         st.error(f"錯誤：找不到資料檔案於 '{path}'。請確認檔案存在並重新整理。")
@@ -216,18 +218,18 @@ def display_monthly_view(df, selected_group, thresholds):
                 column_config={"Group": None}
             )
 
-def display_behavior_analysis_view(df):
-    """新增的催員催收行為分析視圖"""
-    st.header("催員催收行為分析")
+def display_call_time_analysis_view(df):
+    """新增的催員時點撥打與接通分析視圖"""
+    st.header("催員時點撥打與接通分析")
 
     # 1. UI 過濾器
     agent_list = sorted(df['Agent Name'].unique())
     if not agent_list:
         st.info("資料中沒有任何催員可供分析。")
         return
-    selected_agent = st.selectbox("選擇催員", agent_list)
+    selected_agent = st.selectbox("選擇催員", agent_list, key="call_time_agent_select")
 
-    analysis_period = st.radio("選擇分析區間", ["單日分析", "月份分析"], horizontal=True, key="behavior_analysis_period")
+    analysis_period = st.radio("選擇分析區間", ["單日分析", "月份分析"], horizontal=True, key="call_time_period")
 
     df_agent = df[df['Agent Name'] == selected_agent].copy()
 
@@ -238,7 +240,7 @@ def display_behavior_analysis_view(df):
             st.warning(f"催員 {selected_agent} 沒有任何通話紀錄。")
             return
         
-        selected_date = st.selectbox("選擇日期", available_dates)
+        selected_date = st.selectbox("選擇日期", available_dates, key="call_time_date_select")
         df_filtered = df_agent[df_agent['Date'].dt.date == selected_date]
     else:  # 月份分析
         available_months = sorted(df_agent['Date'].dt.month.unique())
@@ -246,78 +248,83 @@ def display_behavior_analysis_view(df):
         if not available_months:
             st.warning(f"催員 {selected_agent} 沒有任何通話紀錄。")
             return
-        selected_month = st.selectbox("選擇月份", available_months, format_func=lambda x: f"2025-{x:02d}")
+        selected_month = st.selectbox("選擇月份", available_months, format_func=lambda x: f"2025-{x:02d}", key="call_time_month_select")
         df_filtered = df_agent[df_agent['Date'].dt.month == selected_month]
 
     if df_filtered.empty:
         st.info("在選定的時間範圍內，這位催員沒有通話紀錄。")
         return
 
-    # 3. 分析邏輯：根據規則分類
-    df_filtered['Duration_sec'] = df_filtered['Talk Durations'].dt.total_seconds()
-    # 排除通話時長為0的紀錄，因為這不代表實際通話
-    df_filtered = df_filtered[df_filtered['Duration_sec'] > 0].copy()
+    # 時間粒度選擇
+    time_granularity = st.selectbox(
+        "選擇時間粒度",
+        ["小時", "30分鐘", "15分鐘"],
+        key="time_granularity"
+    )
 
-    bins = [-1, 5, 10, 30, 60, 120, 180, float('inf')]
-    labels = [
-        "~ 5秒",
-        "5秒 - 10秒",
-        "10秒 - 30秒",
-        "30秒 - 1分鐘",
-        "1分鐘 - 2分鐘",
-        "2分鐘 - 3分鐘",
-        "3分鐘以上"
-    ]
+    # 根據時間粒度計算時間區間
+    df_filtered['Call_Time'] = df_filtered['Call Assigned'].dt.time
+    df_filtered['Time_Interval'] = df_filtered['Call Assigned'].dt.floor('H') # 預設小時
 
-    df_filtered['Duration_Category'] = pd.cut(df_filtered['Duration_sec'], bins=bins, labels=labels, right=True)
+    if time_granularity == "30分鐘":
+        df_filtered['Time_Interval'] = df_filtered['Call Assigned'].dt.floor('30min')
+    elif time_granularity == "15分鐘":
+        df_filtered['Time_Interval'] = df_filtered['Call Assigned'].dt.floor('15min')
 
-    # 4. 資料彙總
-    call_counts = df_filtered.groupby('Duration_Category').size().reindex(labels).fillna(0)
-    
-    # 5. 視覺化呈現
-    st.subheader(f"{selected_agent} 的通話時長分佈")
+    # 計算每個時間區間的撥出數、接通數和接通率
+    hourly_stats = df_filtered.groupby('Time_Interval').agg(
+        Total_Outbound_Calls=('Case No', 'size'),
+        Total_Connected_Calls=('Connected', 'sum')
+    ).reset_index()
 
-    y_axis_mode = st.radio(
-        "選擇 Y 軸顯示方式",
-        ["通話筆數", "通話比例"],
+    hourly_stats['Connection_Rate'] = np.where(
+        hourly_stats['Total_Outbound_Calls'] > 0,
+        hourly_stats['Total_Connected_Calls'] / hourly_stats['Total_Outbound_Calls'],
+        0
+    )
+
+    # 格式化時間區間顯示
+    hourly_stats['Time_Label'] = hourly_stats['Time_Interval'].dt.strftime('%H:%M')
+
+    # 選擇顯示模式
+    display_mode = st.radio(
+        "選擇顯示模式",
+        ["總撥出電話數", "總接通電話數", "綜合分析 (撥出數 + 接通率熱力圖)"],
         horizontal=True,
-        key="y_axis_mode"
-    )
-    
-    chart_data = pd.DataFrame({
-        "通話區間": call_counts.index,
-        "通話筆數": call_counts.values.astype(int)
-    })
-
-    if y_axis_mode == "通話比例":
-        total_calls = chart_data["通話筆數"].sum()
-        chart_data["通話比例"] = (chart_data["通話筆數"] / total_calls).fillna(0)
-        y_field = "通話比例"
-        y_title = "通話比例"
-        y_axis = alt.Axis(format=".1%")
-        tooltip_content = ['通話區間', alt.Tooltip('通話比例', format=".1%")]
-    else:
-        y_field = "通話筆數"
-        y_title = "通話筆數"
-        y_axis = alt.Axis()
-        tooltip_content = ['通話區間', '通話筆數']
-
-    chart = alt.Chart(chart_data).mark_bar().encode(
-        x=alt.X('通話區間', sort=labels, title="通話時長區間", axis=alt.Axis(labelAngle=0)),
-        y=alt.Y(y_field, title=y_title, axis=y_axis),
-        tooltip=tooltip_content
-    ).properties(
-        title=f"{selected_agent} 在選定時間內的通話時長分佈"
+        key="call_time_display_mode"
     )
 
+    st.subheader(f"{selected_agent} 的通話時點分佈 ({time_granularity})")
+
+    if display_mode == "總撥出電話數":
+        chart = alt.Chart(hourly_stats).mark_bar().encode(
+            x=alt.X('Time_Label', sort=None, title="時間區間"),
+            y=alt.Y('Total_Outbound_Calls', title="總撥出電話數"),
+            tooltip=['Time_Label', 'Total_Outbound_Calls']
+        ).properties(
+            title=f"{selected_agent} 總撥出電話數 ({time_granularity})"
+        )
+    elif display_mode == "總接通電話數":
+        chart = alt.Chart(hourly_stats).mark_bar().encode(
+            x=alt.X('Time_Label', sort=None, title="時間區間"),
+            y=alt.Y('Total_Connected_Calls', title="總接通電話數"),
+            tooltip=['Time_Label', 'Total_Connected_Calls']
+        ).properties(
+            title=f"{selected_agent} 總接通電話數 ({time_granularity})"
+        )
+    else: # 綜合分析
+        chart = alt.Chart(hourly_stats).mark_bar().encode(
+            x=alt.X('Time_Label', sort=None, title="時間區間"),
+            y=alt.Y('Total_Outbound_Calls', title="總撥出電話數"),
+            color=alt.Color('Connection_Rate', scale=alt.Scale(range='heatmap'), title="接通率"),
+            tooltip=['Time_Label', 'Total_Outbound_Calls', 'Total_Connected_Calls', alt.Tooltip('Connection_Rate', format='.1%')]
+        ).properties(
+            title=f"{selected_agent} 撥出電話數與接通率 ({time_granularity})"
+        )
     st.altair_chart(chart, use_container_width=True)
 
     st.subheader("詳細數據")
-    # 根據選擇的模式顯示不同的數據框
-    if y_axis_mode == "通話比例":
-        st.dataframe(chart_data[['通話區間', '通話筆數', '通話比例']].style.format({'通話比例': '{:.1%}'}), use_container_width=True, hide_index=True)
-    else:
-        st.dataframe(chart_data[['通話區間', '通話筆數']], use_container_width=True, hide_index=True)
+    st.dataframe(hourly_stats[['Time_Label', 'Total_Outbound_Calls', 'Total_Connected_Calls', 'Connection_Rate']].style.format({'Connection_Rate': '{:.1%}'}), use_container_width=True, hide_index=True)
 
 
 # --- 主應用程式 ---
@@ -329,12 +336,12 @@ def main():
         st.sidebar.header("選擇檢視模式")
         view_mode = st.sidebar.radio(
             "",
-            ["催員每日撥打狀況報告", "月度催員接通數儀表板", "催員催收行為分析"],
+            ["催員每日撥打狀況報告", "月度催員接通數儀表板", "催員催收行為分析", "催員時點撥打與接通分析"],
             label_visibility="collapsed"
         )
 
-        # 催收行為分析模式有自己的篩選器，故在此模式下隱藏通用團隊篩選器
-        if view_mode != "催員催收行為分析":
+        # 催收行為分析模式和時點分析模式有自己的篩選器，故在此模式下隱藏通用團隊篩選器
+        if view_mode not in ["催員催收行為分析", "催員時點撥打與接通分析"]:
             st.sidebar.header("篩選團隊")
             if 'Group' in df.columns:
                 df['Group'] = df['Group'].astype(str)
@@ -352,6 +359,8 @@ def main():
             display_monthly_view(df, selected_group, thresholds)
         elif view_mode == "催員催收行為分析":
             display_behavior_analysis_view(df)
+        elif view_mode == "催員時點撥打與接通分析":
+            display_call_time_analysis_view(df)
 
 if __name__ == "__main__":
     main()
