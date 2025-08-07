@@ -28,7 +28,6 @@ def format_timedelta(td):
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 # --- 資料載入與快取 ---
-@st.cache_data
 def load_data(path):
     """載入並預處理主要通話資料。"""
     try:
@@ -238,10 +237,12 @@ def display_behavior_analysis_view(df):
         if not available_dates:
             st.warning(f"催員 {selected_agent} 沒有任何通話紀錄。")
             return
+        st.write(f"單日分析可用日期: {available_dates}")
         selected_date = st.selectbox("選擇日期", available_dates)
         df_filtered = df_agent[df_agent['Date'].dt.date == selected_date]
     else:  # 月份分析
         available_months = sorted(df_agent['Date'].dt.month.unique())
+        st.write(f"月份分析可用月份: {available_months}")
         if not available_months:
             st.warning(f"催員 {selected_agent} 沒有任何通話紀錄。")
             return
