@@ -7,7 +7,7 @@ import os
 # --- 自定義組別排序 ---
 CUSTOM_GROUP_ORDER = [
     "Motor M1 Team1", "Motor M1 Team2", "Motor M1 Team3", "Motor M1 Team4",
-    "SR Team", "Vehicle M1", "Motor M2", "Vehicle M2", "M3"
+    "SR Team", "Vehicle M1", "Motor M2", "Vehicle M2", "M3", "Write off"
 ]
 
 # --- 頁面配置 ---
