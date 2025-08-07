@@ -317,7 +317,7 @@ def display_call_time_analysis_view(df):
         chart = alt.Chart(hourly_stats).mark_bar().encode(
             x=alt.X('Time_Interval_Label', sort=None, title="時間區間"),
             y=alt.Y('Total_Outbound_Calls', title="總撥出電話數"),
-            color=alt.Color('Connection_Rate', title="接通率"),
+            color=alt.Color('Connection_Rate', scale=alt.Scale(range='blues'), title="接通率"),
             tooltip=['Time_Interval_Label', 'Total_Outbound_Calls', 'Total_Connected_Calls', alt.Tooltip('Connection_Rate', format='.1%')]
         ).properties(
             title=f"{selected_agent} 撥出電話數與接通率 ({time_granularity})"
