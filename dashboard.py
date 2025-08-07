@@ -440,8 +440,8 @@ def display_call_time_analysis_view(df):
 
 # --- 主應用程式 ---
 def main():
-    df = load_data("C:\\Users\\KH00002\\電催過程指標追蹤\\consolidated_report.csv")
-    thresholds = load_thresholds("C:\\Users\\KH00002\\電催過程指標追蹤\\各組每日撥通數上下限.xlsx")
+    df = load_data("consolidated_report.csv")
+    thresholds = load_thresholds("各組每日撥通數上下限.xlsx")
 
     if df is not None:
         st.sidebar.header("選擇檢視模式")
