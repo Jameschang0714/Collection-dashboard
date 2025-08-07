@@ -441,7 +441,6 @@ def display_call_time_analysis_view(df, selected_group):
 
 # --- V4.0 新增分析模組 ---
 def display_profiling_view(df, selected_group):
-    # --- 【更名 V4.3】 ---
     st.header("催員行為與高績效人員比較 (Agent vs. Benchmark)")
 
     if selected_group != "所有團隊":
@@ -452,12 +451,28 @@ def display_profiling_view(df, selected_group):
         st.info(f"團隊 '{selected_group}' 中沒有可用的資料。")
         return
         
+    # --- 【UX 優化 V4.4】 狀態保持與佈局優化 ---
+    # 初始化 session_state
+    if 'profiling_benchmark_select' not in st.session_state:
+        st.session_state.profiling_benchmark_select = []
+
     col1, col2, col3 = st.columns([2, 2, 1.5])
     with col1:
         selected_agent = st.selectbox("選擇要分析的催員", agent_list, key="profiling_agent_select")
+    
+    # 當分析對象改變時，確保他不會出現在標竿群組的選項與已選項目中
+    benchmark_options = [agent for agent in agent_list if agent != selected_agent]
+    # 過濾掉 session_state 中無效的選項 (即剛被選為分析對象的催員)
+    st.session_state.profiling_benchmark_select = [
+        agent for agent in st.session_state.profiling_benchmark_select if agent in benchmark_options
+    ]
+
     with col2:
-        benchmark_options = [agent for agent in agent_list if agent != selected_agent]
-        benchmark_agents = st.multiselect("選擇績效標竿群組 (可多選)", benchmark_options, key="profiling_benchmark_select")
+        benchmark_agents = st.multiselect(
+            "選擇績效標竿群組 (可多選)", 
+            benchmark_options, 
+            key="profiling_benchmark_select"
+        )
     with col3:
         analysis_period = st.radio("選擇分析區間", ["單日", "月份"], horizontal=True, key="profiling_period")
 
@@ -507,7 +522,8 @@ def display_profiling_view(df, selected_group):
 
     comparison_df = comparison_df.sort_values('Time_Interval')
 
-    base = alt.Chart(comparison_df).encode(x=alt.X('Time_Interval', title="時間區間", sort=None))
+    # --- 【UX 優化 V4.4】 X軸標籤改為水平 ---
+    base = alt.Chart(comparison_df).encode(x=alt.X('Time_Interval', title="時間區間", sort=None, axis=alt.Axis(labelAngle=0)))
     bar = base.mark_bar().encode(
         y=alt.Y('個人撥打數', title='撥打數'),
         tooltip=[alt.Tooltip('Time_Interval', title='時間'), alt.Tooltip('個人撥打數', title='個人撥打數')]
@@ -518,7 +534,6 @@ def display_profiling_view(df, selected_group):
         line = base.mark_line(color='red', strokeDash=[5,5]).encode(
             y=alt.Y('標竿群組平均撥打數', title='撥打數'),
         )
-        # --- 【互動優化 V4.3】 新增紅色互動節點 ---
         points = base.mark_point(color='red', filled=True, size=60).encode(
             y=alt.Y('標竿群組平均撥打數'),
             tooltip=[alt.Tooltip('Time_Interval', title='時間'), alt.Tooltip('標竿群組平均撥打數', title='標竿平均', format='.1f')]
