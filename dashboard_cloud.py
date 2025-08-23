@@ -1071,7 +1071,7 @@ def display_profiling_view(df, selected_group):
         )
         st.altair_chart(chart, use_container_width=True)
 
-# --- V18.0 新增：覆蓋率與績效關聯分析視圖 ---
+# --- V18.2 修改：覆蓋率與績效關聯分析視圖 ---
 def display_coverage_performance_view(df, selected_group):
     st.header(get_text("coverage_view_header"))
 
@@ -1079,7 +1079,10 @@ def display_coverage_performance_view(df, selected_group):
         df = df[df['Group'] == selected_group].copy()
 
     # --- 過濾器 ---
-    col1, col2 = st.columns(2)
+    if 'coverage_benchmark_select' not in st.session_state:
+        st.session_state.coverage_benchmark_select = []
+
+    col1, col2, col3 = st.columns(3)
     with col1:
         available_months = sorted(df['Date'].dt.to_period('M').unique(), reverse=True)
         if not available_months:
@@ -1097,12 +1100,27 @@ def display_coverage_performance_view(df, selected_group):
         st.info(get_text("monthly_view_no_data_for_month"))
         return
 
+    agent_list = sorted(df_month['Agent Name'].unique())
+    if not agent_list:
+        st.info(get_text("behavior_view_no_data_in_team").format(selected_group=selected_group))
+        return
+
     with col2:
-        agent_list = [get_text("behavior_view_all_agents")] + sorted(df_month['Agent Name'].unique())
         selected_agent = st.selectbox(
             get_text("coverage_view_agent_selector"),
             agent_list,
             key="coverage_agent_select"
+        )
+    
+    benchmark_options = [agent for agent in agent_list if agent != selected_agent]
+    st.session_state.coverage_benchmark_select = [
+        agent for agent in st.session_state.coverage_benchmark_select if agent in benchmark_options
+    ]
+    with col3:
+        benchmark_agents = st.multiselect(
+            get_text("profiling_view_benchmark_selector"),
+            benchmark_options,
+            key="coverage_benchmark_select"
         )
 
     # --- 數據準備 ---
@@ -1122,23 +1140,46 @@ def display_coverage_performance_view(df, selected_group):
         daily_summary['Total_Success_Case'] / daily_summary['Cases_on_Hand'],
         0
     )
-    
-    # 過濾掉沒有活動的數據點以優化圖表
-    daily_summary.dropna(subset=['Daily_Received_Amount'], inplace=True)
-    daily_summary = daily_summary[(daily_summary['Connected_Coverage'] > 0) | (daily_summary['Daily_Received_Amount'] > 0)]
 
-    if daily_summary.empty:
+    daily_summary.dropna(subset=['Daily_Received_Amount'], inplace=True)
+    
+    # --- V18.2 修改：只篩選被選中的人員 ---
+    agents_to_display = [selected_agent] + benchmark_agents
+    display_df = daily_summary[daily_summary['Agent Name'].isin(agents_to_display)]
+    
+    display_df = display_df[(display_df['Connected_Coverage'] > 0) | (display_df['Daily_Received_Amount'] > 0)]
+
+    if display_df.empty:
         st.info(get_text("coverage_view_no_data"))
         return
 
     # --- 圖表繪製 ---
     st.subheader(get_text("coverage_view_chart_subheader"))
 
-    # 計算平均值以繪製象限線
-    avg_coverage = daily_summary['Connected_Coverage'].mean()
-    avg_amount = daily_summary['Daily_Received_Amount'].mean()
+    # --- V18.2 修改：基於選定群組計算平均值 ---
+    avg_coverage = display_df['Connected_Coverage'].mean()
+    avg_amount = display_df['Daily_Received_Amount'].mean()
 
-    base_chart = alt.Chart(daily_summary).encode(
+    # 為視覺化分類
+    def classify_agent(agent_name):
+        if agent_name == selected_agent:
+            return get_text("profiling_view_performance_agent")
+        else: # 所有其他被選中的都是標竿
+            return get_text("profiling_view_performance_benchmark")
+    display_df['Category'] = display_df['Agent Name'].apply(classify_agent)
+
+    # 視覺化參數
+    color_scale = alt.Scale(
+        domain=[get_text("profiling_view_performance_agent"), get_text("profiling_view_performance_benchmark")],
+        range=['#e45756', '#4c78a8']
+    )
+    size_scale = alt.Scale(
+        domain=[get_text("profiling_view_performance_agent"), get_text("profiling_view_performance_benchmark")],
+        range=[150, 80]
+    )
+
+    # --- V18.2 修改：altair 圖表設定，座標軸將自動適應 display_df 的範圍 ---
+    base_chart = alt.Chart(display_df).encode(
         x=alt.X('Connected_Coverage:Q', title=get_text("coverage_view_x_axis"), axis=alt.Axis(format='%')),
         y=alt.Y('Daily_Received_Amount:Q', title=get_text("coverage_view_y_axis"), axis=alt.Axis(format='s')),
         tooltip=[
@@ -1149,70 +1190,58 @@ def display_coverage_performance_view(df, selected_group):
         ]
     ).interactive()
 
-    # 象限線
+    points = base_chart.mark_circle().encode(
+        color=alt.Color('Category:N', scale=color_scale, legend=alt.Legend(title="群組")),
+        size=alt.Size('Category:N', scale=size_scale, legend=None),
+        opacity=alt.value(0.8)
+    )
+    
     vline = alt.Chart(pd.DataFrame({'x': [avg_coverage]})).mark_rule(strokeDash=[5,5], color='gray').encode(x='x:Q')
     hline = alt.Chart(pd.DataFrame({'y': [avg_amount]})).mark_rule(strokeDash=[5,5], color='gray').encode(y='y:Q')
 
-    if selected_agent == get_text("behavior_view_all_agents"):
-        points = base_chart.mark_circle(size=80, opacity=0.7).encode(
-            color=alt.Color('Agent Name:N', legend=alt.Legend(title=get_text("daily_view_columns")['姓名']))
+    final_chart = (points + vline + hline).properties(
+        title=get_text("coverage_view_chart_title").format(
+            month=selected_month_period.strftime('%Y-%m'),
+            agent=selected_agent
         )
-        final_chart = (points + vline + hline).properties(
-            title=get_text("coverage_view_chart_title_all").format(month=selected_month_period.strftime('%Y-%m'))
-        )
-    else:
-        # 高亮顯示選定催員
-        agent_points = base_chart.transform_filter(
-            alt.datum['Agent Name'] == selected_agent
-        ).mark_circle(size=100).encode(
-            color=alt.value('#e45756'), # 使用突出顏色
-            opacity=alt.value(1)
-        )
-
-        # 其他催員作為背景
-        other_points = base_chart.transform_filter(
-            alt.datum['Agent Name'] != selected_agent
-        ).mark_circle(size=60, color='lightgray').encode(
-            opacity=alt.value(0.7)
-        )
-
-        final_chart = (other_points + agent_points + vline + hline).properties(
-            title=get_text("coverage_view_chart_title_agent").format(agent=selected_agent, month=selected_month_period.strftime('%Y-%m'))
-        )
-
+    )
     st.altair_chart(final_chart, use_container_width=True)
-    
+
     # --- KPI 比較 ---
-    if selected_agent != get_text("behavior_view_all_agents"):
-        st.subheader(get_text("coverage_view_kpi_subheader"))
-        agent_data = daily_summary[daily_summary['Agent Name'] == selected_agent]
-        # 標竿群組為團隊中除了自己以外的所有人
-        benchmark_data = daily_summary[daily_summary['Agent Name'] != selected_agent]
+    st.subheader(get_text("coverage_view_kpi_subheader"))
+    agent_data = display_df[display_df['Agent Name'] == selected_agent]
+    benchmark_data = display_df[display_df['Agent Name'].isin(benchmark_agents)] if benchmark_agents else pd.DataFrame()
 
-        agent_avg_coverage = agent_data['Connected_Coverage'].mean() if not agent_data.empty else 0
-        agent_avg_amount = agent_data['Daily_Received_Amount'].mean() if not agent_data.empty else 0
-        agent_total_amount = agent_data['Daily_Received_Amount'].sum() if not agent_data.empty else 0
+    agent_avg_coverage = agent_data['Connected_Coverage'].mean() if not agent_data.empty else 0
+    agent_avg_amount = agent_data['Daily_Received_Amount'].mean() if not agent_data.empty else 0
+    agent_total_amount = agent_data['Daily_Received_Amount'].sum() if not agent_data.empty else 0
 
-        benchmark_avg_coverage = benchmark_data['Connected_Coverage'].mean() if not benchmark_data.empty else 0
-        benchmark_avg_amount = benchmark_data['Daily_Received_Amount'].mean() if not benchmark_data.empty else 0
-        
-        col1, col2, col3 = st.columns(3)
-        col1.metric(
-            label=get_text("coverage_kpi_avg_coverage"),
-            value=f"{agent_avg_coverage:.1%}",
-            delta=f"{(agent_avg_coverage - benchmark_avg_coverage):.1%} vs. 標竿",
-            delta_color="normal"
-        )
-        col2.metric(
-            label=get_text("coverage_kpi_avg_amount"),
-            value=f"${agent_avg_amount:,.0f}",
-            delta=f"${(agent_avg_amount - benchmark_avg_amount):,.0f} vs. 標竿",
-            delta_color="normal"
-        )
-        col3.metric(
-            label=get_text("coverage_kpi_total_amount"),
-            value=f"${agent_total_amount:,.0f}"
-        )
+    if not benchmark_data.empty:
+        benchmark_avg_coverage = benchmark_data['Connected_Coverage'].mean()
+        benchmark_avg_amount = benchmark_data['Daily_Received_Amount'].mean()
+        delta_coverage_text = f"{(agent_avg_coverage - benchmark_avg_coverage):.1%} vs. 標竿"
+        delta_amount_text = f"${(agent_avg_amount - benchmark_avg_amount):,.0f} vs. 標竿"
+    else:
+        delta_coverage_text = "無標竿可比較"
+        delta_amount_text = "無標竿可比較"
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric(
+        label=get_text("coverage_kpi_avg_coverage"),
+        value=f"{agent_avg_coverage:.1%}",
+        delta=delta_coverage_text,
+        delta_color="off" if not benchmark_agents else "normal"
+    )
+    col2.metric(
+        label=get_text("coverage_kpi_avg_amount"),
+        value=f"${agent_avg_amount:,.0f}",
+        delta=delta_amount_text,
+        delta_color="off" if not benchmark_agents else "normal"
+    )
+    col3.metric(
+        label=get_text("coverage_kpi_total_amount"),
+        value=f"${agent_total_amount:,.0f}"
+    )
 
 # --- 主應用程式 ---
 def main():
