@@ -1,25 +1,25 @@
 # **催收績效儀表板專案總結報告**
 
-文件版本： 8.0
+文件版本： 14.0
 
-最後更新日期： 2025年8月14日
+最後更新日期： 2025年8月22日
 
 專案負責人： James, VP, Chailease Royal Finance Plc.
 
-## **1\. 專案戰略目標 (Strategic Objective)**
+## **1. 專案戰略目標 (Strategic Objective)**
 
 本專案的核心戰略目標，是將原始、分散的每日通話紀錄，轉化為一個能夠提供即時、可行動管理洞察的**動態戰情中心 (Dynamic Command Center)**。此儀表板旨在賦能管理層，透過數據驅動的方式，精準掌握團隊與個人的績效表現與行為模式，從而優化資源分配、提升營運效率，並最終實現業務目標。
 
-## **2\. 核心系統架構 (Core Architecture)**
+## **2. 核心系統架構 (Core Architecture)**
 
 本專案採用了現代化的「**程式碼與數據分離**」雲端架構，確保系統的可擴展性、安全性與可維護性。
 
-* **數據倉儲層 (Data Warehouse):** 位於 **Google Drive**，專門儲存超過 100MB 的大型核心資料集 (consolidated\_report.csv)。  
-* **程式碼儲存庫 (Code Repository):** 位於 **GitHub** (Collection-dashboard)，採用 Git 進行版本控制，僅存放輕量的應用程式程式碼、設定檔與輔助文件。  
-* **商業智慧與執行層 (BI & Runtime):** 部署於 **Streamlit Community Cloud**，負責執行儀表板應用。此層透過安全的服務帳號憑證 (GCP Service Account)，以 **Google 官方核心 API** (google-api-python-client) 直接與數據倉儲層進行通訊，實現高效、穩定的數據調用。  
+* **數據倉儲層 (Data Warehouse):** 位於 **Google Drive**，專門儲存超過 100MB 的大型核心資料集 (consolidated\_report.csv)。
+* **程式碼儲存庫 (Code Repository):** 位於 **GitHub** (Collection-dashboard)，採用 Git 進行版本控制，僅存放輕量的應用程式程式碼、設定檔與輔助文件。
+* **商業智慧與執行層 (BI \& Runtime):** 部署於 **Streamlit Community Cloud**，負責執行儀表板應用。此層透過安全的服務帳號憑證 (GCP Service Account)，以 **Google 官方核心 API** (google-api-python-client) 直接與數據倉儲層進行通訊，實現高效、穩定的數據調用。
 * **開發維護流程 (Dev/Prod Workflow):** 建立了一套**雙軌制**的開發流程。所有新功能首先在 dashboard\_local.py（本地開發版）上進行開發與驗證，確保核心邏輯無誤後，再將更新同步至 dashboard\_cloud.py（雲端生產版），並透過 Git 推送至雲端進行部署。
 
-## **3\. 版本演進與功能迭代日誌 (Version & Feature Log)**
+## **3. 版本演進與功能迭代日誌 (Version \& Feature Log)**
 
 ### **V1-V3: 基礎建設與分析深化**
 
@@ -27,30 +27,164 @@
 
 ### **V4: 從績效觀測到戰略賦能**
 
-* **V4.0-V4.4 \- 引入【催員行為與高績效人員比較】模組**: 將儀表板從「績效觀測」升級為「模式識別」，賦予管理者自定義績效標竿群組、進行戰略模擬的能力。  
-* **V4.5-V4.7 \- 架構升級：雲端數據整合**: 成功將大型數據集從本地遷移至 Google Drive，並建立了初步的雲端數據接口。
+* **V4.0-V4.4 - 引入【催員行為與高績效人員比較】模組**: 將儀表板從「績效觀測」升級為「模式識別」，賦予管理者自定義績效標竿群組、進行戰略模擬的能力。
+* **V4.5-V4.7 - 架構升級：雲端數據整合**: 成功將大型數據集從本地遷移至 Google Drive，並建立了初步的雲端數據接口。
 
-### **V5: 雙軌制架構與本地端穩定化 (Dual-Track Architecture & Local Stabilization)**
+### **V5: 雙軌制架構與本地端穩定化 (Dual-Track Architecture \& Local Stabilization)**
 
-* **V5.0 \- 戰略轉向：本地優先原則 (Strategic Pivot: Local-First Principle)**: 在雲端部署遭遇環境挑戰後，果斷採取「先求穩、再求遠」的策略。建立了一個完全在本地運行的版本 (dashboard\_local.py)，該版本直接讀取本地 CSV 檔案，用於快速、無干擾地驗證所有核心業務邏輯與視覺化功能。  
-* **V5.1 \- 建立開發維護流程 (Establishing Dev/Prod Workflow)**: 正式確立了**開發與生產環境分離**的最佳實踐。建立了 dashboard\_cloud.py 作為雲端生產版的專用腳本，並定義了標準作業程序：所有新功能必須先在本地版 (dashboard\_local.py) 驗證成功，才能將程式碼同步至雲端版 (dashboard\_cloud.py)。
+* **V5.0 - 戰略轉向：本地優先原則 (Strategic Pivot: Local-First Principle)**: 在雲端部署遭遇環境挑戰後，果斷採取「先求穩、再求遠」的策略。建立了一個完全在本地運行的版本 (dashboard\_local.py)，該版本直接讀取本地 CSV 檔案，用於快速、無干擾地驗證所有核心業務邏輯與視覺化功能。
+* **V5.1 - 建立開發維護流程 (Establishing Dev/Prod Workflow)**: 正式確立了**開發與生產環境分離**的最佳實踐。建立了 dashboard\_cloud.py 作為雲端生產版的專用腳本，並定義了標準作業程序：所有新功能必須先在本地版 (dashboard\_local.py) 驗證成功，才能將程式碼同步至雲端版 (dashboard\_cloud.py)。
 
-### **V6 & V7: 雲端架構最終定版 (Finalized Cloud Architecture)**
+### **V6 \& V7: 雲端架構最終定版 (Finalized Cloud Architecture)**
 
-* **V6.0 \- 雲端部署與環境除錯 (Cloud Deployment & Environment Debugging)**: 在部署 dashboard\_cloud.py 的過程中，遭遇了由第三方函式庫 (gdown) 在 Streamlit Cloud 特定執行環境下引發的、頑固的版本衝突問題。此挑戰暴露了依賴非官方中介函式庫在生產環境中的潛在風險。  
-* **V7.0 \- 架構最終升級：採用 Google 官方核心 API (Final Architecture Upgrade: Adopting Official Google Core API)**:  
-  * **戰略決策**: 為徹底根除不可控的第三方依賴風險，決定放棄 gdown，將數據接口直接升級為 **Google 官方的 API 客戶端函式庫** (google-api-python-client)。  
-  * **實現**:  
-    * 更新 requirements.txt，移除 gdown 並加入 google-api-python-client 與 google-auth-oauthlib。  
-    * 重構 dashboard\_cloud.py 中的 load\_data() 函數，使用 googleapiclient 直接與 Google Drive API 進行通訊，下載數據。  
+* **V6.0 - 雲端部署與環境除錯 (Cloud Deployment \& Environment Debugging)**: 在部署 dashboard\_cloud.py 的過程中，遭遇了由第三方函式庫 (gdown) 在 Streamlit Cloud 特定執行環境下引發的、頑固的版本衝突問題。此挑戰暴露了依賴非官方中介函式庫在生產環境中的潛在風險。
+* **V7.0 - 架構最終升級：採用 Google 官方核心 API (Final Architecture Upgrade: Adopting Official Google Core API)**:
+
+  * **戰略決策**: 為徹底根除不可控的第三方依賴風險，決定放棄 gdown，將數據接口直接升級為 **Google 官方的 API 客戶端函式庫** (google-api-python-client)。
+  * **實現**:
+
+    * 更新 requirements.txt，移除 gdown 並加入 google-api-python-client 與 google-auth-oauthlib。
+    * 重構 dashboard\_cloud.py 中的 load\_data() 函數，使用 googleapiclient 直接與 Google Drive API 進行通訊，下載數據。
+
   * **最終成果**: 成功建立了一個**技術堆疊完全自主可控、不受第三方函式庫不明確行為影響**的企業級數據接口。此最終架構不僅解決了部署問題，更大幅提升了應用程式的長期穩定性、安全性與專業性。
 
 ### **V8.0: 企業級通用性升級：導入雙語系國際化架構 (Enterprise Usability Upgrade: Implementing Bilingual Internationalization)**
 
-* **戰略決策 (Strategic Rationale)**: 為提升儀表板在跨國團隊中的通用性與易用性，並使其符合企業級軟體的專業標準，決定進行國際化 (Internationalization, i18n) 升級，導入中英雙語一鍵切換功能。此舉旨在消除語言隔閡，賦能所有同仁無障礙地使用此數據工具。  
-* **技術實現 (Technical Implementation)**:  
-  1. **建立語言資源中心**: 在 dashboard\_cloud.py 的頂層建立了一個集中的 LANGUAGES 字典。此字典將所有使用者介面 (UI) 的文字（包括標題、按鈕、圖表標籤等）與程式碼邏輯完全分離，並為繁體中文 (zh\_tw) 和英文 (en) 分別提供完整的文本對應。  
-  2. **引入狀態管理**: 採用 Streamlit 的核心功能 st.session\_state 來持久化存儲使用者選擇的語言。這確保了用戶在儀表板的不同頁面間導航時，其語言偏好設定能夠保持一致。  
-  3. **動態文本渲染**: 重構了所有 UI 組件，使其顯示的文字不再是靜態的硬編碼字串，而是通過一個 get\_text() 輔助函數，根據 st.session\_state 中當前的語言設定，從語言資源中心動態獲取對應的文本。  
-  4. **新增語言切換器**: 在側邊欄頂部增加了一個 st.radio 組件，提供「中文」與「English」選項，讓使用者可以直觀、便捷地即時切換界面語言。  
-* **最終成果 (Final Outcome)**: 成功將儀表板從單一語言應用，升級為一個具備國際化架構的雙語 BI 工具。此升級不僅大幅提升了使用者體驗與團隊協作效率，更為未來擴展至更多語系奠定了堅實、可擴展的技術基礎，使專案成果更具企業級價值。
+* **戰略決策 (Strategic Rationale)**: 為提升儀表板在跨國團隊中的通用性與易用性，並使其符合企業級軟體的專業標準，決定進行國際化 (Internationalization, i18n) 升級，導入中英雙語一鍵切換功能。此舉旨在消除語言隔閡，賦能所有同仁無障礙地使用此數據工具。
+* **技術實現 (Technical Implementation)**:
+
+  1. **建立語言資源中心**: 在 dashboard\_cloud.py 的頂層建立了一個集中的 LANGUAGES 字典。此字典將所有使用者介面 (UI) 的文字（包括標題、按鈕、圖表標籤等）與程式碼邏輯完全分離，並為繁體中文 (zh\_tw) 和英文 (en) 分別提供完整的文本對應。
+  2. **引入狀態管理**: 採用 Streamlit 的核心功能 st.session\_state 來持久化存儲使用者選擇的語言。
+  3. **動態文本渲染**: 重構了所有 UI 組件，使其顯示的文字不再是靜態的硬編碼字串，而是通過一個 get\_text() 輔助函數，根據 st.session\_state 中當前的語言設定，從語言資源中心動態獲取對應的文本。
+  4. **新增語言切換器**: 在側邊欄頂部增加了一個 st.radio 組件，提供「中文」與「English」選項，讓使用者可以直觀、便捷地即時切換界面語言。
+
+* **最終成果 (Final Outcome)**: 成功將儀表板從單一語言應用，升級為一個具備國際化架構的雙語 BI 工具。此升級不僅大幅提升了使用者體驗與團隊協作效率，更為未來擴展至更多語系奠定了堅實、可擴展的技術基礎。
+
+### **V9.0 - V14.0: 數據賦能與策略升級：從「過程監控」到「績效洞察」 (Data Empowerment \& Strategic Upgrade: From "Process Monitoring" to "Performance Insight")**
+
+此階段的核心戰略目標是將儀表板的分析維度，從單純的「**前端行為監控**」深化至「**後端績效結果**」，建立一個從「**行動 (Action)**」到「**產出 (Result)**」的完整數據分析閉環。
+
+* **V9.0 - 數據管道重構：引入績效數據源 (Data Pipeline Restructuring: Integrating Performance Data Source)**
+
+  * **戰略決策**: 為實現端到端的績效分析，決定引入包含「在手案件」、「回收金額」等關鍵指標的後端績效底稿 (KH\_DM\_FACT\_COLL\_KPI\_DTL\_\*.csv)。
+  * **技術實現**:
+
+    1. **ETL 流程升級**: 建立了一個全新的 merge\_and\_enrich\_reports.py 腳本，取代了原有的合併流程。此腳本現在具備**數據增強 (Data Enrichment)** 的能力。
+    2. **核心指標運算**: 腳本的核心創新在於，它能夠**逐日**讀取對應的績效底稿，並基於 ASSIGN\_YMD (派件日) 與 REMOVE\_YMD (移出日)，精準計算出每位催員在**當日實際的「在手案件數 (Cases on Hand)」**。
+    3. **精準金額計算**: 根據業務邏輯，腳本現在只篩選 RCV\_DT (回收日) 為報告當日的紀錄，並加總 RCV\_AMT\_ACTUAL (實際回收金額)，確保數據的精準性。
+    4. **格式兼容性**: 經過多次迭代，最終版的 ETL 腳本具備了向下兼容的能力，能夠自動識別並處理多種檔名格式與檔案類型 (.csv, .xlsx)。
+
+  * **最終成果**: 產出了一個全新的、高度整合的數據資產 consolidated\_report\_enriched.csv，為後續所有策略性分析奠定了堅實、可靠的數據基礎。
+
+* **V10.0 - 每日作戰儀表板升級 (Daily Operations Dashboard Upgrade)**
+
+  * **戰略決策**: 將新的績效維度直接賦能於第一線管理者最常使用的「催員每日撥打狀況報告」。
+  * **實現**:
+
+    1. **數據源切換**: dashboard\_local.py 的數據讀取目標，從舊的 consolidated\_report.csv 切換至新的 consolidated\_report\_enriched.csv。
+    2. **新增核心指標**: 在每日報告表格中，新增了「在手案件數」與「當日回收金額」欄位。
+    3. **引入效率指標**: 在儀表板層面**即時運算**並呈現了兩個全新的效率指標：「**撥打案件覆蓋率**」 (總處理案件數 / 在手案件數) 與「**接通案件覆蓋率**」 (總成功案件數 / 在手案件數)，將管理視角從「工作量」提升至「工作效率」。
+
+* **V11.0 \& V12.0 - 月度儀表板升級：從「微觀比較」到「宏觀趨勢」 (Monthly Dashboard Upgrade: From "Micro Comparison" to "Macro Trends")**
+
+  * **戰略決策**: 在保留原有微觀比較功能的基礎上，為月度儀表板增加宏觀的、與財務結果直接掛鉤的趨勢分析視圖。
+  * **實現**:
+
+    1. **引入頁籤式佈局**: 將月度儀表板重構為「趨勢分析」與「熱力圖分析」兩個頁籤，實現了功能的擴展而非取代。
+    2. **新增趨勢分析視圖**: 在新頁籤中，增加了月度總覽 KPI 指標卡，並創建了一個**雙軸圖**，將代表「作業量」的**每日總接通數 (直條圖)** 與代表「作業價值」的**每日總回收金額 (折線圖)** 進行交叉比對。
+    3. **保留熱力圖功能**: 原有的、用於比較團隊內個人每日接通數的熱力圖功能被完整保留在第二個頁籤中，確保了原有管理工具的延續性。
+    4. **數據兼容性**: 儀表板具備了數據韌性，在處理沒有回收數據的月份時，能夠優雅地提示用戶，而不會導致頁面崩潰。
+
+* **V13.0 \& V14.0 - 行為分析模組升級：從「行為模式」到「投資報酬率 (ROI)」 (Behavior Analysis Module Upgrade: From "Behavior Pattern" to "ROI")**
+
+  * **戰略決策**: 將「催員催收行為分析」從度量「做了什麼」，深化至度量「**怎樣做才最有效率**」，直接分析不同行為模式的投資報酬率。
+  * **實現**:
+
+    1. **引入效率指標**: 經過探討，最終決定採用「**回收轉換率**」 (回收案件數 / 總通話筆數) 作為衡量效率的最終指標，此指標剝離了總量效應，能最真實地反映每一次通話的成功機率。
+    2. **新增效率分析視圖**: 在「催員催收行為分析」模組中，同樣引入頁籤佈局。在新的「通話效率分析」頁籤中，創建了一個**雙軸圖**：
+
+       * **直條圖 (投入)**: 顯示各「通話時長區間」的**總通話筆數**。
+       * **折線圖 (產出)**: 顯示對應區間的**回收轉換率 (%)**。
+
+  * **最終成果**: 此儀表板現在能夠極其直觀地揭示**投入產出比最高**的「黃金通話模式」，為團隊提煉可複製、可推廣的「最佳作業準則 (Best Practice)」提供了前所未有的數據洞察力。
+
+V15.0 - V16.0: 分析維度全面深化與最終定版 (Comprehensive Deepening of Analytical Dimensions \& Finalization)
+
+此階段的核心目標是將剩餘的分析模組與後端績效數據進行深度整合，並修復在開發過程中發現的各類問題，最終完成一個功能完整、架構穩健的企業級決策支援工具。
+
+
+
+V15.0 - 時點分析模組升級：從「觸及效率」到「產出效益」 (Call Time Analysis Module Upgrade: From "Reach Efficiency" to "Productive Efficacy")
+
+
+
+戰略決策: 將「催員時點撥打與接通分析」從回答「哪個時段容易找到人」，升級為回答「哪個時段能找到對的人」，即觸及價值最高的客戶。
+
+
+
+技術實現:
+
+
+
+引入可切換的熱力圖指標: 在「綜合分析」模式中，新增了一個\*\*「熱力圖指標」切換\*\*選項。
+
+
+
+雙維度效益分析: 管理者現在可以自由地將熱力圖的顏色維度，在「接通率」（觸及效率）和「平均回收金額」（產出效益）之間一鍵切換。
+
+
+
+最終成果: 此功能讓管理者可以透過交叉比對，精準識別出那些「接通率高但回收金額低」的低效時段，以及那些「回收金額高」的黃金時段，從而為團隊制定出數據驅動的、效益最大化的撥打策略。
+
+
+
+V16.0 - 人員比較模組升級：從「行為標竿」到「績效標竿」 (Agent Profiling Module Upgrade: From "Behavioral" to "Performance" Benchmarking)
+
+
+
+戰略決策: 將「催員行為與高績效人員比較」從「模仿行為」，深化至「複製成功」，不僅比較 怎麼做，更量化地比較 做到了什麼。
+
+
+
+技術實現:
+
+
+
+新增績效指標比較視圖: 在原有的行為模式比較圖下方，新增了「績效指標比較」模組。
+
+
+
+量化績效差距: 採用分組柱狀圖，將個人與標竿群體在三個核心維度上的表現進行並列比較：
+
+
+
+回收總金額 (結果)
+
+
+
+接通案件覆蓋率 (效率)
+
+
+
+平均通話時長 (行為)
+
+
+
+最終成果: 此視圖能讓管理者一目了然地識別出特定催員與頂尖團隊在「結果」、「效率」與「行為」上的具體差距，為制定極具針對性的個人發展計畫 (IDP)、將管理資源精準投入在最需要提升的環節，提供了強大的數據支持。
+
+
+
+V15.1 - V16.0 (Final Fixes): 穩定性與完整性最終修復
+
+
+
+問題: 在 V10-V15 的快速迭代過程中，出現了部分功能退縮（如每日報告的顏色標記消失）與國際化不完整（英文版 UI 崩潰）的問題。
+
+
+
+解決方案: 以功能最完整的 V15.1 版本為基準，重新植入 V16.0 的新功能，並完整地補齊了英文語系的翻譯條目，同時修復了每日報告的顏色標記功能。
+
+
+
+最終成果: 交付了一個功能完整、架構穩健、在雙語環境下均能穩定運行的 V16.0 最終版本，成功完成了本次的全面策略升級。
+
