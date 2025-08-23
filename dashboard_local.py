@@ -6,10 +6,10 @@ import os
 import io
 import json
 
-# --- 【V17.0 升級】擴充多語言資源庫 ---
+# --- 【V18.2 升級】優化覆蓋率分析視圖，實現動態適應座標軸 ---
 LANGUAGES = {
     "zh_tw": {
-        "page_title": "電話催收過程指標追蹤儀表板 (本地開發 V17.0)",
+        "page_title": "電話催收過程指標追蹤儀表板 (本地開發 V18.2)",
         "main_title": "電話催收過程指標追蹤儀表板 (整合版)",
         "lang_selector_label": "語言 (Language)",
         "load_data_local_success": "已成功從本地路徑載入資料: {path}",
@@ -20,7 +20,7 @@ LANGUAGES = {
         "data_load_failed": "資料未能成功載入，請根據上方的錯誤訊息檢查您的設定。",
         "sidebar_view_mode": "選擇檢視模式",
         "sidebar_filter_team": "篩選團隊",
-        "view_modes": ["催員每日撥打狀況報告", "月度催員接通數儀表板", "催員催收行為分析", "催員時點撥打與接通分析", "催員行為與高績效人員比較"],
+        "view_modes": ["催員每日撥打狀況報告", "月度催員接通數儀表板", "催員催收行為分析", "催員時點撥打與接通分析", "催員行為與高績效人員比較", "覆蓋率與績效關聯分析"],
         "all_teams": "所有團隊",
         # Daily View
         "daily_view_header": "催員每日撥打狀況報告",
@@ -28,16 +28,16 @@ LANGUAGES = {
         "daily_view_date_selector": "選擇日期",
         "daily_view_no_records_for_date": "在 {selected_date} 沒有通話紀錄。",
         "daily_view_columns": {
-            '組別': '組別', 'ID': 'ID', '姓名': '姓名', 
+            '組別': '組別', 'ID': 'ID', '姓名': '姓名',
             '在手案件數': '在手案件數',
-            '總撥打數': '總撥打數', 
+            '總撥打數': '總撥打數',
             '總處理案件數': '總處理案件數',
             '撥打案件覆蓋率': '撥打案件覆蓋率',
-            '總成功撥打數': '總成功撥打數', 
+            '總成功撥打數': '總成功撥打數',
             '總成功案件數': '總成功案件數',
             '接通案件覆蓋率': '接通案件覆蓋率',
-            '重複撥打率': '重複撥打率', 
-            '總通話時長': '總通話時長', 
+            '重複撥打率': '重複撥打率',
+            '總通話時長': '總通話時長',
             '平均通話時長': '平均通話時長',
             '當日回收金額': '當日回收金額'
         },
@@ -143,9 +143,21 @@ LANGUAGES = {
         "profiling_metric_recovery_amount": "回收總金額",
         "profiling_metric_connected_coverage": "接通案件覆蓋率",
         "profiling_metric_avg_talk_duration": "平均通話時長 (秒)",
+        # V18.2 Coverage-Performance View
+        "coverage_view_header": "覆蓋率與績效關聯分析",
+        "coverage_view_agent_selector": "選擇焦點分析催員",
+        "coverage_view_no_data": "選定範圍內沒有足夠的數據進行關聯分析。",
+        "coverage_view_chart_subheader": "每日績效分佈 (投入 vs. 產出)",
+        "coverage_view_x_axis": "接通案件覆蓋率 (投入)",
+        "coverage_view_y_axis": "當日回收金額 (產出)",
+        "coverage_view_chart_title": "{month} 績效分佈：{agent} vs. 標竿群組",
+        "coverage_view_kpi_subheader": "關鍵指標比較 (個人 vs. 標竿平均)",
+        "coverage_kpi_avg_coverage": "期間平均接通覆蓋率",
+        "coverage_kpi_avg_amount": "期間日均回收金額",
+        "coverage_kpi_total_amount": "期間總回收金額",
     },
     "en": {
-        "page_title": "Collector Performance Dashboard (Local Dev V17.0)",
+        "page_title": "Collector Performance Dashboard (Local Dev V18.2)",
         "main_title": "Collector Performance Dashboard (Enriched)",
         "lang_selector_label": "Language",
         "load_data_local_success": "Successfully loaded data from local path: {path}",
@@ -156,7 +168,7 @@ LANGUAGES = {
         "data_load_failed": "Failed to load data. Please check your settings based on the error message above.",
         "sidebar_view_mode": "Select View Mode",
         "sidebar_filter_team": "Filter Team",
-        "view_modes": ["Daily Agent Report", "Monthly Dashboard", "Behavior Analysis", "Call Time Analysis", "Agent Profiling"],
+        "view_modes": ["Daily Agent Report", "Monthly Dashboard", "Behavior Analysis", "Call Time Analysis", "Agent Profiling", "Coverage & Performance Analysis"],
         "all_teams": "All Teams",
         # Daily View
         "daily_view_header": "Daily Agent Report",
@@ -164,16 +176,16 @@ LANGUAGES = {
         "daily_view_date_selector": "Select Date",
         "daily_view_no_records_for_date": "No call records on {selected_date}.",
         "daily_view_columns": {
-            '組別': 'Group', 'ID': 'ID', '姓名': 'Name', 
+            '組別': 'Group', 'ID': 'ID', '姓名': 'Name',
             '在手案件數': 'Cases on Hand',
-            '總撥打數': 'Total Calls', 
+            '總撥打數': 'Total Calls',
             '總處理案件數': 'Called Cases',
             '撥打案件覆蓋率': 'Called Coverage',
-            '總成功撥打數': 'Connected Calls', 
+            '總成功撥打數': 'Connected Calls',
             '總成功案件數': 'Connected Cases',
             '接通案件覆蓋率': 'Connected Coverage',
-            '重複撥打率': 'Repetition Rate', 
-            '總通話時長': 'Total Talk Duration', 
+            '重複撥打率': 'Repetition Rate',
+            '總通話時長': 'Total Talk Duration',
             '平均通話時長': 'Avg. Talk Duration',
             '當日回收金額': 'Daily Received Amount'
         },
@@ -279,6 +291,18 @@ LANGUAGES = {
         "profiling_metric_recovery_amount": "Total Recovery Amount",
         "profiling_metric_connected_coverage": "Connected Case Coverage",
         "profiling_metric_avg_talk_duration": "Avg. Talk Duration (sec)",
+        # V18.2 Coverage-Performance View
+        "coverage_view_header": "Coverage & Performance Correlation Analysis",
+        "coverage_view_agent_selector": "Select Agent for Focus Analysis",
+        "coverage_view_no_data": "Not enough data in the selected range for correlation analysis.",
+        "coverage_view_chart_subheader": "Daily Performance Distribution (Input vs. Output)",
+        "coverage_view_x_axis": "Connected Case Coverage (Input)",
+        "coverage_view_y_axis": "Daily Received Amount (Output)",
+        "coverage_view_chart_title": "{month} Performance Distribution: {agent} vs. Benchmark Group",
+        "coverage_view_kpi_subheader": "KPI Comparison (Agent vs. Benchmark Average)",
+        "coverage_kpi_avg_coverage": "Avg. Connected Coverage",
+        "coverage_kpi_avg_amount": "Avg. Daily Recovery Amount",
+        "coverage_kpi_total_amount": "Total Recovery Amount",
     }
 }
 
@@ -293,7 +317,7 @@ def get_text(key):
 # --- 頁面配置 ---
 st.set_page_config(
     page_title=get_text("page_title"),
-    page_icon="📊", 
+    page_icon="📊",
     layout="wide"
 )
 
@@ -346,7 +370,7 @@ def load_thresholds(path):
 # --- 每日報告視圖 ---
 def display_daily_view(df, selected_group, thresholds):
     st.header(get_text("daily_view_header"))
-    
+
     if selected_group != get_text("all_teams"):
         df = df[df['Group'] == selected_group].copy()
 
@@ -354,7 +378,7 @@ def display_daily_view(df, selected_group, thresholds):
     if not available_dates:
         st.info(get_text("daily_view_no_data_for_team"))
         return
-    
+
     selected_date = st.selectbox(get_text("daily_view_date_selector"), available_dates)
 
     if selected_date:
@@ -379,12 +403,12 @@ def display_daily_view(df, selected_group, thresholds):
         summary['Total_Success_Case'] = summary['Total_Success_Case'].fillna(0).astype(int)
 
         summary['Repetition_rate'] = np.where(summary['Total_Success_Case'] > 0, summary['Total_Outbound_Call_Success'] / summary['Total_Success_Case'], 0)
-        
+
         total_seconds = summary['Total_Talk_Duration'].dt.total_seconds()
         total_cases = summary['Total_Case_call']
         average_seconds = np.where(total_cases > 0, total_seconds / total_cases, 0)
         summary['Average_Talk_Duration'] = pd.to_timedelta(average_seconds, unit='s')
-        
+
         summary['Called_Coverage'] = np.where(summary['Cases_on_Hand'] > 0, summary['Total_Case_call'] / summary['Cases_on_Hand'], 0)
         summary['Connected_Coverage'] = np.where(summary['Cases_on_Hand'] > 0, summary['Total_Success_Case'] / summary['Cases_on_Hand'], 0)
 
@@ -399,29 +423,29 @@ def display_daily_view(df, selected_group, thresholds):
 
         column_map_keys = list(get_text("daily_view_columns").keys())
         original_columns = [
-            'Group', 'Agent ID', 'Agent Name', 'Cases_on_Hand', 'Total_Outbound_Call', 
-            'Total_Case_call', 'Called_Coverage', 'Total_Outbound_Call_Success', 'Total_Success_Case', 
-            'Connected_Coverage', 'Repetition_rate', 'Total_Talk_Duration', 
+            'Group', 'Agent ID', 'Agent Name', 'Cases_on_Hand', 'Total_Outbound_Call',
+            'Total_Case_call', 'Called_Coverage', 'Total_Outbound_Call_Success', 'Total_Success_Case',
+            'Connected_Coverage', 'Repetition_rate', 'Total_Talk_Duration',
             'Average_Talk_Duration', 'Daily_Received_Amount'
         ]
         rename_dict = {orig: get_text("daily_view_columns")[key] for orig, key in zip(original_columns, column_map_keys)}
         summary.rename(columns=rename_dict, inplace=True)
         summary_to_style.rename(columns=rename_dict, inplace=True)
-        
+
         final_columns_order = list(get_text("daily_view_columns").values())
-        
+
         def style_daily_kpi(row):
             styles = pd.Series('', index=row.index)
             group_name = row[get_text("daily_view_columns")['組別']]
-            
+
             if not thresholds or group_name not in thresholds:
                 return styles
-            
+
             value_to_check = row[get_text("daily_view_columns")['總成功撥打數']]
-            
+
             lower_bound = thresholds[group_name]['下限']
             upper_bound = thresholds[group_name]['上限']
-            
+
             if value_to_check > 0:
                 if value_to_check < lower_bound:
                     styles[get_text("daily_view_columns")['總成功撥打數']] = 'background-color: #FFCDD2'
@@ -437,7 +461,7 @@ def display_daily_view(df, selected_group, thresholds):
             get_text("daily_view_columns")['撥打案件覆蓋率']: '{:.1%}',
             get_text("daily_view_columns")['接通案件覆蓋率']: '{:.1%}'
         })
-        
+
         st.dataframe(styled_summary, use_container_width=True, hide_index=True)
 
 # --- 月度報告視圖 ---
@@ -451,10 +475,10 @@ def display_monthly_view(df, selected_group, thresholds):
     if not available_months:
         st.info(get_text("monthly_view_no_month_data"))
         return
-        
+
     selected_month_period = st.selectbox(
-        get_text("monthly_view_month_selector"), 
-        available_months, 
+        get_text("monthly_view_month_selector"),
+        available_months,
         format_func=lambda p: p.strftime('%Y-%m')
     )
 
@@ -466,13 +490,13 @@ def display_monthly_view(df, selected_group, thresholds):
             return
 
         tab1, tab2 = st.tabs([
-            get_text("monthly_view_tab_trend"), 
+            get_text("monthly_view_tab_trend"),
             get_text("monthly_view_tab_heatmap")
         ])
 
         with tab1:
             st.subheader(get_text("monthly_view_trend_subheader"))
-            
+
             if 'Daily Received Amount' in df_month.columns and df_month['Daily Received Amount'].sum() > 0:
                 total_connections = df_month['Connected'].sum()
                 total_amount = df_month['Daily Received Amount'].sum()
@@ -501,16 +525,16 @@ def display_monthly_view(df, selected_group, thresholds):
             st.subheader(get_text("monthly_view_heatmap_subheader"))
             daily_sum = df_month.groupby(['Date', 'Group', 'Agent ID', 'Agent Name'])['Connected'].sum()
             pivot = daily_sum.unstack(level='Date', fill_value=0).reset_index()
-            
+
             def style_performance(row, date_cols_to_style):
                 styles = pd.Series('', index=row.index)
                 group_name = row['Group']
                 if not thresholds or group_name not in thresholds:
                     return styles
-                
+
                 lower_bound = thresholds[group_name]['下限']
                 upper_bound = thresholds[group_name]['上限']
-                
+
                 for col in date_cols_to_style:
                     if col in row.index:
                         val = row[col]
@@ -522,7 +546,7 @@ def display_monthly_view(df, selected_group, thresholds):
                 return styles
 
             display_groups = [g for g in CUSTOM_GROUP_ORDER if g in pivot['Group'].unique()]
-            
+
             for group_name in display_groups:
                 st.subheader(group_name)
                 group_df = pivot[pivot['Group'] == group_name]
@@ -530,7 +554,7 @@ def display_monthly_view(df, selected_group, thresholds):
                 formatted_date_cols = [d.strftime('%m/%d') for d in date_cols]
                 rename_mapping = dict(zip(date_cols, formatted_date_cols))
                 renamed_group_df = group_df.rename(columns=rename_mapping)
-                
+
                 styled_df = renamed_group_df.style.apply(
                     style_performance,
                     date_cols_to_style=formatted_date_cols,
@@ -549,7 +573,7 @@ def display_behavior_analysis_view(df, selected_group):
     if len(agent_list) == 1:
         st.info(get_text("behavior_view_no_data_in_team").format(selected_group=selected_group))
         return
-    
+
     selected_agent = st.selectbox(get_text("behavior_view_agent_selector"), agent_list, key="behavior_agent_select")
 
     if selected_agent == get_text("behavior_view_all_agents"):
@@ -586,7 +610,7 @@ def display_behavior_analysis_view(df, selected_group):
         return
 
     tab1, tab2 = st.tabs([
-        get_text("behavior_view_tab_original"), 
+        get_text("behavior_view_tab_original"),
         get_text("behavior_view_tab_effective")
     ])
 
@@ -626,7 +650,7 @@ def display_behavior_analysis_view(df, selected_group):
 
     with tab2:
         if 'Daily Received Amount' in df_filtered.columns and df_filtered['Daily Received Amount'].sum() > 0:
-            
+
             total_calls_agg = df_filtered.groupby('Talk_Duration_Category').agg(
                 Count=('Case No', 'size')
             ).reset_index()
@@ -645,7 +669,7 @@ def display_behavior_analysis_view(df, selected_group):
             base = alt.Chart(agg_data).encode(
                 x=alt.X('Talk_Duration_Category:N', sort=category_order, title=get_text("behavior_view_x_axis"), axis=alt.Axis(labelAngle=0))
             )
-            
+
             bar = base.mark_bar(color='#4c78a8', opacity=0.7).encode(
                 y=alt.Y('Count:Q', title=get_text("behavior_view_y_axis_count")),
                 tooltip=[
@@ -662,7 +686,7 @@ def display_behavior_analysis_view(df, selected_group):
                     alt.Tooltip('Recovered_Cases', title=get_text("behavior_view_tooltip_recovered_cases"))
                 ]
             )
-            
+
             chart_effective = alt.layer(bar, line).resolve_scale(
                 y='independent'
             ).properties(
@@ -685,7 +709,7 @@ def display_call_time_analysis_view(df, selected_group):
     if len(agent_list) == 1:
         st.info(get_text("behavior_view_no_data_in_team").format(selected_group=selected_group))
         return
-        
+
     selected_agent = st.selectbox(get_text("behavior_view_agent_selector"), agent_list, key="call_time_agent_select")
 
     if selected_agent == get_text("behavior_view_all_agents"):
@@ -738,12 +762,12 @@ def display_call_time_analysis_view(df, selected_group):
 
     hourly_stats['Connection_Rate'] = np.where(hourly_stats['Total_Outbound_Calls'] > 0, hourly_stats['Total_Connected_Calls'] / hourly_stats['Total_Outbound_Calls'], 0)
     hourly_stats['Avg_Amount_per_Call'] = np.where(hourly_stats['Total_Outbound_Calls'] > 0, hourly_stats['Total_Received_Amount'] / hourly_stats['Total_Outbound_Calls'], 0)
-    
+
     total_outbound = hourly_stats['Total_Outbound_Calls'].sum()
     total_connected = hourly_stats['Total_Connected_Calls'].sum()
     hourly_stats['Outbound_Call_Percentage'] = (hourly_stats['Total_Outbound_Calls'] / total_outbound) if total_outbound > 0 else 0
     hourly_stats['Connected_Call_Percentage'] = (hourly_stats['Total_Connected_Calls'] / total_connected) if total_connected > 0 else 0
-    
+
     display_mode = st.radio(get_text("call_time_view_display_mode"), get_text("call_time_view_display_mode_options"), horizontal=True, key="call_time_display_mode")
 
     heatmap_metric = get_text("call_time_view_heatmap_options")[0]
@@ -787,7 +811,7 @@ def display_call_time_analysis_view(df, selected_group):
         ).properties(title=get_text("call_time_view_chart_title_connected").format(analysis_subject_name=analysis_subject_name, y_title=y_title, time_granularity=time_granularity_display))
     else: # 綜合分析
         y_field, y_title = 'Total_Outbound_Calls', get_text("call_time_view_y_outbound_count")
-        
+
         color_field, color_title, color_scheme = None, None, None
         if heatmap_metric == get_text("call_time_view_heatmap_options")[0]: # 接通率
             color_field = 'Connection_Rate'
@@ -810,7 +834,7 @@ def display_call_time_analysis_view(df, selected_group):
                      alt.Tooltip('Total_Outbound_Calls', title=get_text("call_time_view_tooltip_outbound_count")),
                      tooltip_metric]
         ).properties(title=get_text("call_time_view_chart_title_combined").format(analysis_subject_name=analysis_subject_name, y_title=y_title, metric_name=metric_name, time_granularity=time_granularity_display))
-    
+
     if chart:
         st.altair_chart(chart, use_container_width=True)
 
@@ -975,17 +999,15 @@ def display_profiling_view(df, selected_group):
 
         # 1. 回收總金額
         total_recovery = df_to_calc['Daily Received Amount'].sum()
-        
+
         # 2. 接通案件覆蓋率
-        # For benchmark, we need to sum up cases on hand correctly across days/agents
         if is_benchmark:
-            cases_on_hand = df_to_calc.groupby('Date')['Cases on Hand'].first().sum()
-        else: # For single agent, just take the first value per day
+            cases_on_hand = df_to_calc.groupby(['Date', 'Agent ID'])['Cases on Hand'].first().sum()
+        else:
              cases_on_hand = df_to_calc.groupby('Date')['Cases on Hand'].first().sum()
 
         connected_cases = df_to_calc[df_to_calc['Connected'] == 1]['Case No'].nunique()
-        
-        # Final calculation needs to be averaged by number of agents for benchmark
+
         total_recovery_kpi = total_recovery / num_agents
         connected_coverage = (connected_cases / cases_on_hand) if cases_on_hand > 0 else 0
 
@@ -1012,10 +1034,9 @@ def display_profiling_view(df, selected_group):
         kpi_data.append({"Metric": metric, "Value": agent_kpis[metric], "Group": get_text("profiling_view_performance_agent")})
         if not df_benchmark.empty:
             kpi_data.append({"Metric": metric, "Value": benchmark_kpis[metric], "Group": get_text("profiling_view_performance_benchmark")})
-    
+
     kpi_df = pd.DataFrame(kpi_data)
-    
-    # Manually set y-axis scale for each metric
+
     if not kpi_df.empty:
         chart = alt.Chart(kpi_df).mark_bar().encode(
             x=alt.X('Group:N', title=None, axis=alt.Axis(labels=False, ticks=False)),
@@ -1034,23 +1055,195 @@ def display_profiling_view(df, selected_group):
         )
         st.altair_chart(chart, use_container_width=True)
 
+# --- V18.2 修改：覆蓋率與績效關聯分析視圖 ---
+def display_coverage_performance_view(df, selected_group):
+    st.header(get_text("coverage_view_header"))
+
+    if selected_group != get_text("all_teams"):
+        df = df[df['Group'] == selected_group].copy()
+
+    # --- 過濾器 ---
+    if 'coverage_benchmark_select' not in st.session_state:
+        st.session_state.coverage_benchmark_select = []
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        available_months = sorted(df['Date'].dt.to_period('M').unique(), reverse=True)
+        if not available_months:
+            st.info(get_text("monthly_view_no_month_data"))
+            return
+        selected_month_period = st.selectbox(
+            get_text("monthly_view_month_selector"),
+            available_months,
+            format_func=lambda p: p.strftime('%Y-%m'),
+            key="coverage_month_select"
+        )
+
+    df_month = df[df['Date'].dt.to_period('M') == selected_month_period].copy()
+    if df_month.empty:
+        st.info(get_text("monthly_view_no_data_for_month"))
+        return
+
+    agent_list = sorted(df_month['Agent Name'].unique())
+    if not agent_list:
+        st.info(get_text("behavior_view_no_data_in_team").format(selected_group=selected_group))
+        return
+
+    with col2:
+        selected_agent = st.selectbox(
+            get_text("coverage_view_agent_selector"),
+            agent_list,
+            key="coverage_agent_select"
+        )
+    
+    benchmark_options = [agent for agent in agent_list if agent != selected_agent]
+    st.session_state.coverage_benchmark_select = [
+        agent for agent in st.session_state.coverage_benchmark_select if agent in benchmark_options
+    ]
+    with col3:
+        benchmark_agents = st.multiselect(
+            get_text("profiling_view_benchmark_selector"),
+            benchmark_options,
+            key="coverage_benchmark_select"
+        )
+
+    # --- 數據準備 ---
+    daily_summary = df_month.groupby(['Date', 'Group', 'Agent ID', 'Agent Name']).agg(
+        Cases_on_Hand=('Cases on Hand', 'first'),
+        Daily_Received_Amount=('Daily Received Amount', 'first')
+    ).reset_index()
+
+    success_cases = df_month[df_month['Connected'] == 1].groupby(['Date', 'Agent ID'])['Case No'].nunique().reset_index()
+    success_cases.rename(columns={'Case No': 'Total_Success_Case'}, inplace=True)
+
+    daily_summary = pd.merge(daily_summary, success_cases, on=['Date', 'Agent ID'], how='left')
+    daily_summary['Total_Success_Case'] = daily_summary['Total_Success_Case'].fillna(0).astype(int)
+
+    daily_summary['Connected_Coverage'] = np.where(
+        daily_summary['Cases_on_Hand'] > 0,
+        daily_summary['Total_Success_Case'] / daily_summary['Cases_on_Hand'],
+        0
+    )
+
+    daily_summary.dropna(subset=['Daily_Received_Amount'], inplace=True)
+    
+    # --- V18.2 修改：只篩選被選中的人員 ---
+    agents_to_display = [selected_agent] + benchmark_agents
+    display_df = daily_summary[daily_summary['Agent Name'].isin(agents_to_display)]
+    
+    display_df = display_df[(display_df['Connected_Coverage'] > 0) | (display_df['Daily_Received_Amount'] > 0)]
+
+    if display_df.empty:
+        st.info(get_text("coverage_view_no_data"))
+        return
+
+    # --- 圖表繪製 ---
+    st.subheader(get_text("coverage_view_chart_subheader"))
+
+    # --- V18.2 修改：基於選定群組計算平均值 ---
+    avg_coverage = display_df['Connected_Coverage'].mean()
+    avg_amount = display_df['Daily_Received_Amount'].mean()
+
+    # 為視覺化分類
+    def classify_agent(agent_name):
+        if agent_name == selected_agent:
+            return get_text("profiling_view_performance_agent")
+        else: # 所有其他被選中的都是標竿
+            return get_text("profiling_view_performance_benchmark")
+    display_df['Category'] = display_df['Agent Name'].apply(classify_agent)
+
+    # 視覺化參數
+    color_scale = alt.Scale(
+        domain=[get_text("profiling_view_performance_agent"), get_text("profiling_view_performance_benchmark")],
+        range=['#e45756', '#4c78a8']
+    )
+    size_scale = alt.Scale(
+        domain=[get_text("profiling_view_performance_agent"), get_text("profiling_view_performance_benchmark")],
+        range=[150, 80]
+    )
+
+    # --- V18.2 修改：altair 圖表設定，座標軸將自動適應 display_df 的範圍 ---
+    base_chart = alt.Chart(display_df).encode(
+        x=alt.X('Connected_Coverage:Q', title=get_text("coverage_view_x_axis"), axis=alt.Axis(format='%')),
+        y=alt.Y('Daily_Received_Amount:Q', title=get_text("coverage_view_y_axis"), axis=alt.Axis(format='s')),
+        tooltip=[
+            alt.Tooltip('Date:T', title=get_text("monthly_view_tooltip_date")),
+            alt.Tooltip('Agent Name:N', title=get_text("daily_view_columns")['姓名']),
+            alt.Tooltip('Connected_Coverage:Q', title=get_text("coverage_view_x_axis"), format='.1%'),
+            alt.Tooltip('Daily_Received_Amount:Q', title=get_text("coverage_view_y_axis"), format=',.0f')
+        ]
+    ).interactive()
+
+    points = base_chart.mark_circle().encode(
+        color=alt.Color('Category:N', scale=color_scale, legend=alt.Legend(title="群組")),
+        size=alt.Size('Category:N', scale=size_scale, legend=None),
+        opacity=alt.value(0.8)
+    )
+    
+    vline = alt.Chart(pd.DataFrame({'x': [avg_coverage]})).mark_rule(strokeDash=[5,5], color='gray').encode(x='x:Q')
+    hline = alt.Chart(pd.DataFrame({'y': [avg_amount]})).mark_rule(strokeDash=[5,5], color='gray').encode(y='y:Q')
+
+    final_chart = (points + vline + hline).properties(
+        title=get_text("coverage_view_chart_title").format(
+            month=selected_month_period.strftime('%Y-%m'),
+            agent=selected_agent
+        )
+    )
+    st.altair_chart(final_chart, use_container_width=True)
+
+    # --- KPI 比較 ---
+    st.subheader(get_text("coverage_view_kpi_subheader"))
+    agent_data = display_df[display_df['Agent Name'] == selected_agent]
+    benchmark_data = display_df[display_df['Agent Name'].isin(benchmark_agents)] if benchmark_agents else pd.DataFrame()
+
+    agent_avg_coverage = agent_data['Connected_Coverage'].mean() if not agent_data.empty else 0
+    agent_avg_amount = agent_data['Daily_Received_Amount'].mean() if not agent_data.empty else 0
+    agent_total_amount = agent_data['Daily_Received_Amount'].sum() if not agent_data.empty else 0
+
+    if not benchmark_data.empty:
+        benchmark_avg_coverage = benchmark_data['Connected_Coverage'].mean()
+        benchmark_avg_amount = benchmark_data['Daily_Received_Amount'].mean()
+        delta_coverage_text = f"{(agent_avg_coverage - benchmark_avg_coverage):.1%} vs. 標竿"
+        delta_amount_text = f"${(agent_avg_amount - benchmark_avg_amount):,.0f} vs. 標竿"
+    else:
+        delta_coverage_text = "無標竿可比較"
+        delta_amount_text = "無標竿可比較"
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric(
+        label=get_text("coverage_kpi_avg_coverage"),
+        value=f"{agent_avg_coverage:.1%}",
+        delta=delta_coverage_text,
+        delta_color="off" if not benchmark_agents else "normal"
+    )
+    col2.metric(
+        label=get_text("coverage_kpi_avg_amount"),
+        value=f"${agent_avg_amount:,.0f}",
+        delta=delta_amount_text,
+        delta_color="off" if not benchmark_agents else "normal"
+    )
+    col3.metric(
+        label=get_text("coverage_kpi_total_amount"),
+        value=f"${agent_total_amount:,.0f}"
+    )
+
 # --- 主應用程式 ---
 def main():
     st.sidebar.header(get_text("lang_selector_label"))
     lang_choice = st.sidebar.radio(
-        "", 
-        ["中文", "English"], 
+        "",
+        ["中文", "English"],
         index=0 if st.session_state.lang == 'zh_tw' else 1,
         label_visibility="collapsed"
     )
-    
+
     new_lang = 'zh_tw' if lang_choice == '中文' else 'en'
     if st.session_state.lang != new_lang:
         st.session_state.lang = new_lang
         st.rerun()
 
     st.title(get_text("main_title"))
-    
+
     # 注意：請將此路徑修改為您本機存放 consolidated_report_enriched.csv 的實際路徑
     local_csv_path = r"C:\Users\KH00002\電催過程指標追蹤\consolidated_report_enriched.csv"
     df = load_data(local_csv_path)
@@ -1058,20 +1251,21 @@ def main():
 
     if df is not None:
         st.sidebar.header(get_text("sidebar_view_mode"))
-        
+
         view_mode_options = get_text("view_modes")
         view_mode = st.sidebar.radio(
             "",
             view_mode_options,
             label_visibility="collapsed"
         )
-        
+
         view_functions = {
             view_mode_options[0]: display_daily_view,
             view_mode_options[1]: display_monthly_view,
             view_mode_options[2]: display_behavior_analysis_view,
             view_mode_options[3]: display_call_time_analysis_view,
             view_mode_options[4]: display_profiling_view,
+            view_mode_options[5]: display_coverage_performance_view, # 新增視圖
         }
 
         st.sidebar.header(get_text("sidebar_filter_team"))
@@ -1080,7 +1274,7 @@ def main():
             all_groups = [get_text("all_teams")] + [g for g in CUSTOM_GROUP_ORDER if g in df['Group'].unique()]
         else:
             all_groups = [get_text("all_teams")]
-        
+
         selected_group = st.sidebar.selectbox("", all_groups, label_visibility="collapsed")
 
         if view_mode in view_functions:
@@ -1088,7 +1282,7 @@ def main():
                  view_functions[view_mode](df, selected_group, thresholds)
             else:
                  view_functions[view_mode](df, selected_group)
-        
+
     else:
         st.warning(get_text("data_load_failed"))
 

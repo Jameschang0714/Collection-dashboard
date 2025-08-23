@@ -9,10 +9,10 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-# --- 【V17.1 升級】擴充多語言資源庫並調整加載邏輯 ---
+# --- 【V18.2 升級】同步本地版優化，實現動態適應座標軸 ---
 LANGUAGES = {
     "zh_tw": {
-        "page_title": "電話催收過程指標追蹤儀表板 (雲端生產版 V17.1)",
+        "page_title": "電話催收過程指標追蹤儀表板 (雲端生產版 V18.2)",
         "main_title": "電話催收過程指標追蹤儀表板 (整合版)",
         "lang_selector_label": "語言 (Language)",
         "load_data_success": "已透過 Google API 安全載入主數據。",
@@ -23,7 +23,7 @@ LANGUAGES = {
         "data_load_failed": "資料未能成功載入，請根據上方的錯誤訊息檢查您的設定。",
         "sidebar_view_mode": "選擇檢視模式",
         "sidebar_filter_team": "篩選團隊",
-        "view_modes": ["催員每日撥打狀況報告", "月度催員接通數儀表板", "催員催收行為分析", "催員時點撥打與接通分析", "催員行為與高績效人員比較"],
+        "view_modes": ["催員每日撥打狀況報告", "月度催員接通數儀表板", "催員催收行為分析", "催員時點撥打與接通分析", "催員行為與高績效人員比較", "覆蓋率與績效關聯分析"],
         "all_teams": "所有團隊",
         # Daily View
         "daily_view_header": "催員每日撥打狀況報告",
@@ -146,9 +146,21 @@ LANGUAGES = {
         "profiling_metric_recovery_amount": "回收總金額",
         "profiling_metric_connected_coverage": "接通案件覆蓋率",
         "profiling_metric_avg_talk_duration": "平均通話時長 (秒)",
+        # V18.2 Coverage-Performance View
+        "coverage_view_header": "覆蓋率與績效關聯分析",
+        "coverage_view_agent_selector": "選擇焦點分析催員",
+        "coverage_view_no_data": "選定範圍內沒有足夠的數據進行關聯分析。",
+        "coverage_view_chart_subheader": "每日績效分佈 (投入 vs. 產出)",
+        "coverage_view_x_axis": "接通案件覆蓋率 (投入)",
+        "coverage_view_y_axis": "當日回收金額 (產出)",
+        "coverage_view_chart_title": "{month} 績效分佈：{agent} vs. 標竿群組",
+        "coverage_view_kpi_subheader": "關鍵指標比較 (個人 vs. 標竿平均)",
+        "coverage_kpi_avg_coverage": "期間平均接通覆蓋率",
+        "coverage_kpi_avg_amount": "期間日均回收金額",
+        "coverage_kpi_total_amount": "期間總回收金額",
     },
     "en": {
-        "page_title": "Collector Performance Dashboard (Cloud Production V17.1)",
+        "page_title": "Collector Performance Dashboard (Cloud Production V18.2)",
         "main_title": "Collector Performance Dashboard (Enriched)",
         "lang_selector_label": "Language",
         "load_data_success": "Successfully loaded main data via Google API.",
@@ -159,7 +171,7 @@ LANGUAGES = {
         "data_load_failed": "Failed to load data. Please check your settings based on the error message above.",
         "sidebar_view_mode": "Select View Mode",
         "sidebar_filter_team": "Filter Team",
-        "view_modes": ["Daily Agent Report", "Monthly Dashboard", "Behavior Analysis", "Call Time Analysis", "Agent Profiling"],
+        "view_modes": ["Daily Agent Report", "Monthly Dashboard", "Behavior Analysis", "Call Time Analysis", "Agent Profiling", "Coverage & Performance Analysis"],
         "all_teams": "All Teams",
         # Daily View
         "daily_view_header": "Daily Agent Report",
@@ -282,6 +294,18 @@ LANGUAGES = {
         "profiling_metric_recovery_amount": "Total Recovery Amount",
         "profiling_metric_connected_coverage": "Connected Case Coverage",
         "profiling_metric_avg_talk_duration": "Avg. Talk Duration (sec)",
+        # V18.2 Coverage-Performance View
+        "coverage_view_header": "Coverage & Performance Correlation Analysis",
+        "coverage_view_agent_selector": "Select Agent for Focus Analysis",
+        "coverage_view_no_data": "Not enough data in the selected range for correlation analysis.",
+        "coverage_view_chart_subheader": "Daily Performance Distribution (Input vs. Output)",
+        "coverage_view_x_axis": "Connected Case Coverage (Input)",
+        "coverage_view_y_axis": "Daily Received Amount (Output)",
+        "coverage_view_chart_title": "{month} Performance Distribution: {agent} vs. Benchmark Group",
+        "coverage_view_kpi_subheader": "KPI Comparison (Agent vs. Benchmark Average)",
+        "coverage_kpi_avg_coverage": "Avg. Connected Coverage",
+        "coverage_kpi_avg_amount": "Avg. Daily Recovery Amount",
+        "coverage_kpi_total_amount": "Total Recovery Amount",
     }
 }
 
@@ -296,7 +320,7 @@ def get_text(key):
 # --- 頁面配置 ---
 st.set_page_config(
     page_title=get_text("page_title"),
-    page_icon="☁️",
+    page_icon="🚀",
     layout="wide"
 )
 
@@ -993,15 +1017,13 @@ def display_profiling_view(df, selected_group):
         total_recovery = df_to_calc['Daily Received Amount'].sum()
 
         # 2. 接通案件覆蓋率
-        # For benchmark, we need to sum up cases on hand correctly across days/agents
         if is_benchmark:
-            cases_on_hand = df_to_calc.groupby('Date')['Cases on Hand'].first().sum()
-        else: # For single agent, just take the first value per day
+            cases_on_hand = df_to_calc.groupby(['Date', 'Agent ID'])['Cases on Hand'].first().sum()
+        else:
              cases_on_hand = df_to_calc.groupby('Date')['Cases on Hand'].first().sum()
 
         connected_cases = df_to_calc[df_to_calc['Connected'] == 1]['Case No'].nunique()
-
-        # Final calculation needs to be averaged by number of agents for benchmark
+        
         total_recovery_kpi = total_recovery / num_agents
         connected_coverage = (connected_cases / cases_on_hand) if cases_on_hand > 0 else 0
 
@@ -1031,7 +1053,6 @@ def display_profiling_view(df, selected_group):
 
     kpi_df = pd.DataFrame(kpi_data)
 
-    # Manually set y-axis scale for each metric
     if not kpi_df.empty:
         chart = alt.Chart(kpi_df).mark_bar().encode(
             x=alt.X('Group:N', title=None, axis=alt.Axis(labels=False, ticks=False)),
@@ -1049,6 +1070,149 @@ def display_profiling_view(df, selected_group):
             y='independent'
         )
         st.altair_chart(chart, use_container_width=True)
+
+# --- V18.0 新增：覆蓋率與績效關聯分析視圖 ---
+def display_coverage_performance_view(df, selected_group):
+    st.header(get_text("coverage_view_header"))
+
+    if selected_group != get_text("all_teams"):
+        df = df[df['Group'] == selected_group].copy()
+
+    # --- 過濾器 ---
+    col1, col2 = st.columns(2)
+    with col1:
+        available_months = sorted(df['Date'].dt.to_period('M').unique(), reverse=True)
+        if not available_months:
+            st.info(get_text("monthly_view_no_month_data"))
+            return
+        selected_month_period = st.selectbox(
+            get_text("monthly_view_month_selector"),
+            available_months,
+            format_func=lambda p: p.strftime('%Y-%m'),
+            key="coverage_month_select"
+        )
+
+    df_month = df[df['Date'].dt.to_period('M') == selected_month_period].copy()
+    if df_month.empty:
+        st.info(get_text("monthly_view_no_data_for_month"))
+        return
+
+    with col2:
+        agent_list = [get_text("behavior_view_all_agents")] + sorted(df_month['Agent Name'].unique())
+        selected_agent = st.selectbox(
+            get_text("coverage_view_agent_selector"),
+            agent_list,
+            key="coverage_agent_select"
+        )
+
+    # --- 數據準備 ---
+    daily_summary = df_month.groupby(['Date', 'Group', 'Agent ID', 'Agent Name']).agg(
+        Cases_on_Hand=('Cases on Hand', 'first'),
+        Daily_Received_Amount=('Daily Received Amount', 'first')
+    ).reset_index()
+
+    success_cases = df_month[df_month['Connected'] == 1].groupby(['Date', 'Agent ID'])['Case No'].nunique().reset_index()
+    success_cases.rename(columns={'Case No': 'Total_Success_Case'}, inplace=True)
+
+    daily_summary = pd.merge(daily_summary, success_cases, on=['Date', 'Agent ID'], how='left')
+    daily_summary['Total_Success_Case'] = daily_summary['Total_Success_Case'].fillna(0).astype(int)
+
+    daily_summary['Connected_Coverage'] = np.where(
+        daily_summary['Cases_on_Hand'] > 0,
+        daily_summary['Total_Success_Case'] / daily_summary['Cases_on_Hand'],
+        0
+    )
+    
+    # 過濾掉沒有活動的數據點以優化圖表
+    daily_summary.dropna(subset=['Daily_Received_Amount'], inplace=True)
+    daily_summary = daily_summary[(daily_summary['Connected_Coverage'] > 0) | (daily_summary['Daily_Received_Amount'] > 0)]
+
+    if daily_summary.empty:
+        st.info(get_text("coverage_view_no_data"))
+        return
+
+    # --- 圖表繪製 ---
+    st.subheader(get_text("coverage_view_chart_subheader"))
+
+    # 計算平均值以繪製象限線
+    avg_coverage = daily_summary['Connected_Coverage'].mean()
+    avg_amount = daily_summary['Daily_Received_Amount'].mean()
+
+    base_chart = alt.Chart(daily_summary).encode(
+        x=alt.X('Connected_Coverage:Q', title=get_text("coverage_view_x_axis"), axis=alt.Axis(format='%')),
+        y=alt.Y('Daily_Received_Amount:Q', title=get_text("coverage_view_y_axis"), axis=alt.Axis(format='s')),
+        tooltip=[
+            alt.Tooltip('Date:T', title=get_text("monthly_view_tooltip_date")),
+            alt.Tooltip('Agent Name:N', title=get_text("daily_view_columns")['姓名']),
+            alt.Tooltip('Connected_Coverage:Q', title=get_text("coverage_view_x_axis"), format='.1%'),
+            alt.Tooltip('Daily_Received_Amount:Q', title=get_text("coverage_view_y_axis"), format=',.0f')
+        ]
+    ).interactive()
+
+    # 象限線
+    vline = alt.Chart(pd.DataFrame({'x': [avg_coverage]})).mark_rule(strokeDash=[5,5], color='gray').encode(x='x:Q')
+    hline = alt.Chart(pd.DataFrame({'y': [avg_amount]})).mark_rule(strokeDash=[5,5], color='gray').encode(y='y:Q')
+
+    if selected_agent == get_text("behavior_view_all_agents"):
+        points = base_chart.mark_circle(size=80, opacity=0.7).encode(
+            color=alt.Color('Agent Name:N', legend=alt.Legend(title=get_text("daily_view_columns")['姓名']))
+        )
+        final_chart = (points + vline + hline).properties(
+            title=get_text("coverage_view_chart_title_all").format(month=selected_month_period.strftime('%Y-%m'))
+        )
+    else:
+        # 高亮顯示選定催員
+        agent_points = base_chart.transform_filter(
+            alt.datum['Agent Name'] == selected_agent
+        ).mark_circle(size=100).encode(
+            color=alt.value('#e45756'), # 使用突出顏色
+            opacity=alt.value(1)
+        )
+
+        # 其他催員作為背景
+        other_points = base_chart.transform_filter(
+            alt.datum['Agent Name'] != selected_agent
+        ).mark_circle(size=60, color='lightgray').encode(
+            opacity=alt.value(0.7)
+        )
+
+        final_chart = (other_points + agent_points + vline + hline).properties(
+            title=get_text("coverage_view_chart_title_agent").format(agent=selected_agent, month=selected_month_period.strftime('%Y-%m'))
+        )
+
+    st.altair_chart(final_chart, use_container_width=True)
+    
+    # --- KPI 比較 ---
+    if selected_agent != get_text("behavior_view_all_agents"):
+        st.subheader(get_text("coverage_view_kpi_subheader"))
+        agent_data = daily_summary[daily_summary['Agent Name'] == selected_agent]
+        # 標竿群組為團隊中除了自己以外的所有人
+        benchmark_data = daily_summary[daily_summary['Agent Name'] != selected_agent]
+
+        agent_avg_coverage = agent_data['Connected_Coverage'].mean() if not agent_data.empty else 0
+        agent_avg_amount = agent_data['Daily_Received_Amount'].mean() if not agent_data.empty else 0
+        agent_total_amount = agent_data['Daily_Received_Amount'].sum() if not agent_data.empty else 0
+
+        benchmark_avg_coverage = benchmark_data['Connected_Coverage'].mean() if not benchmark_data.empty else 0
+        benchmark_avg_amount = benchmark_data['Daily_Received_Amount'].mean() if not benchmark_data.empty else 0
+        
+        col1, col2, col3 = st.columns(3)
+        col1.metric(
+            label=get_text("coverage_kpi_avg_coverage"),
+            value=f"{agent_avg_coverage:.1%}",
+            delta=f"{(agent_avg_coverage - benchmark_avg_coverage):.1%} vs. 標竿",
+            delta_color="normal"
+        )
+        col2.metric(
+            label=get_text("coverage_kpi_avg_amount"),
+            value=f"${agent_avg_amount:,.0f}",
+            delta=f"${(agent_avg_amount - benchmark_avg_amount):,.0f} vs. 標竿",
+            delta_color="normal"
+        )
+        col3.metric(
+            label=get_text("coverage_kpi_total_amount"),
+            value=f"${agent_total_amount:,.0f}"
+        )
 
 # --- 主應用程式 ---
 def main():
@@ -1096,6 +1260,7 @@ def main():
             view_mode_options[2]: display_behavior_analysis_view,
             view_mode_options[3]: display_call_time_analysis_view,
             view_mode_options[4]: display_profiling_view,
+            view_mode_options[5]: display_coverage_performance_view, # 新增視圖
         }
 
         st.sidebar.header(get_text("sidebar_filter_team"))
