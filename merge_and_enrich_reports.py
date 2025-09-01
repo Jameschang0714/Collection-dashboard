@@ -243,9 +243,27 @@ def main():
     
     print("數據合併完成。")
 
-    # 步驟六：儲存最終報告
+    # 步驟六：篩選必要欄位並儲存最終報告
     try:
-        df_enriched.to_csv(output_path, index=False, encoding='utf-8-sig')
+        print("正在篩選最終報告的欄位，只保留儀表板需要的資訊...")
+        
+        used_cols = [
+            'Date', 'Group', 'Agent ID', 'Agent Name', 'Case No', 'Connected', 
+            'Talk Durations', 'Call Assigned', 'Cases on Hand', 'Daily Received Amount'
+        ]
+        
+        final_cols_to_keep = [col for col in used_cols if col in df_enriched.columns]
+        
+        if len(final_cols_to_keep) != len(used_cols):
+            print("警告：部分儀表板必要的欄位在資料中找不到，可能影響儀表板功能。")
+            print(f"預期欄位: {used_cols}")
+            print(f"實際找到的欄位: {final_cols_to_keep}")
+
+        df_final_filtered = df_enriched[final_cols_to_keep]
+        
+        print(f"欄位篩選完成，報告將從 {len(df_enriched.columns)} 個欄位減為 {len(df_final_filtered.columns)} 個。")
+
+        df_final_filtered.to_csv(output_path, index=False, encoding='utf-8-sig')
         print(f"--- 流程成功結束 ---")
         print(f"增強版報告已成功儲存至： {output_path}")
     except Exception as e:
