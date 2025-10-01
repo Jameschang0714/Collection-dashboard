@@ -56,7 +56,11 @@ LANGUAGES = {
         "monthly_view_kpi_total_amount": "本月總回收金額",
         "monthly_view_kpi_avg_amount_per_call": "平均每次接通回收金額",
         "monthly_view_trend_subheader": "宏觀趨勢分析 (接通數 vs. 回收金額)",
-        "monthly_view_heatmap_subheader": "各組每日接通數比較",
+        "monthly_view_heatmap_subheader": "各組每日績效熱力圖",
+        "monthly_view_heatmap_metric_selector": "選擇熱力圖指標",
+        "heatmap_metric_connections": "總接通數",
+        "heatmap_metric_total_calls": "總撥打數",
+        "heatmap_metric_called_coverage": "撥打案件覆蓋率",
         "monthly_view_y_axis_calls": "總接通數",
         "monthly_view_y_axis_amount": "總回收金額",
         "monthly_view_tooltip_date": "日期",
@@ -204,7 +208,11 @@ LANGUAGES = {
         "monthly_view_kpi_total_amount": "Total Amount Received This Month",
         "monthly_view_kpi_avg_amount_per_call": "Avg. Amount / Connection",
         "monthly_view_trend_subheader": "Macro Trend Analysis (Connections vs. Amount)",
-        "monthly_view_heatmap_subheader": "Daily Connections Comparison by Group",
+        "monthly_view_heatmap_subheader": "Daily Performance Heatmap",
+        "monthly_view_heatmap_metric_selector": "Select Heatmap Metric",
+        "heatmap_metric_connections": "Total Connections",
+        "heatmap_metric_total_calls": "Total Calls",
+        "heatmap_metric_called_coverage": "Called Coverage",
         "monthly_view_y_axis_calls": "Total Connections",
         "monthly_view_y_axis_amount": "Total Received Amount",
         "monthly_view_tooltip_date": "Date",
@@ -539,11 +547,44 @@ def display_monthly_view(df, selected_group, thresholds):
 
         with tab2:
             st.subheader(get_text("monthly_view_heatmap_subheader"))
-            daily_sum = df_month.groupby(['Date', 'Group', 'Agent ID', 'Agent Name'])['Connected'].sum()
-            pivot = daily_sum.unstack(level='Date', fill_value=0).reset_index()
 
-            def style_performance(row, date_cols_to_style):
+            metric_options = [
+                get_text("heatmap_metric_connections"), 
+                get_text("heatmap_metric_total_calls"), 
+                get_text("heatmap_metric_called_coverage")
+            ]
+            selected_metric = st.radio(
+                get_text("monthly_view_heatmap_metric_selector"),
+                metric_options,
+                horizontal=True,
+                key="heatmap_metric_selector"
+            )
+
+            format_spec = None
+            if selected_metric == get_text("heatmap_metric_connections"):
+                daily_agg = df_month.groupby(['Date', 'Group', 'Agent ID', 'Agent Name'])['Connected'].sum()
+            elif selected_metric == get_text("heatmap_metric_total_calls"):
+                daily_agg = df_month.groupby(['Date', 'Group', 'Agent ID', 'Agent Name'])['Case No'].size()
+            else:  # Called Coverage
+                daily_agg_raw = df_month.groupby(['Date', 'Group', 'Agent ID', 'Agent Name']).agg(
+                    Total_Case_call=('Case No', 'nunique'),
+                    Cases_on_Hand=('Cases on Hand', 'first')
+                ).reset_index()
+                daily_agg_raw['Called_Coverage'] = np.where(
+                    daily_agg_raw['Cases_on_Hand'] > 0,
+                    daily_agg_raw['Total_Case_call'] / daily_agg_raw['Cases_on_Hand'],
+                    0
+                )
+                daily_agg = daily_agg_raw.set_index(['Date', 'Group', 'Agent ID', 'Agent Name'])['Called_Coverage']
+                format_spec = '{:.1%}'
+
+            pivot = daily_agg.unstack(level='Date', fill_value=0).reset_index()
+
+            def style_performance(row, date_cols_to_style, metric_for_styling):
                 styles = pd.Series('', index=row.index)
+                if metric_for_styling != get_text("heatmap_metric_connections"):
+                    return styles
+                
                 group_name = row['Group']
                 if not thresholds or group_name not in thresholds:
                     return styles
@@ -567,6 +608,11 @@ def display_monthly_view(df, selected_group, thresholds):
                 st.subheader(group_name)
                 group_df = pivot[pivot['Group'] == group_name]
                 date_cols = [col for col in group_df.columns if isinstance(col, pd.Timestamp)]
+                
+                if not date_cols:
+                    st.dataframe(group_df.drop(columns=['Group'], errors='ignore'), use_container_width=True, hide_index=True, column_config={"Group": None})
+                    continue
+
                 formatted_date_cols = [d.strftime('%m/%d') for d in date_cols]
                 rename_mapping = dict(zip(date_cols, formatted_date_cols))
                 renamed_group_df = group_df.rename(columns=rename_mapping)
@@ -574,8 +620,13 @@ def display_monthly_view(df, selected_group, thresholds):
                 styled_df = renamed_group_df.style.apply(
                     style_performance,
                     date_cols_to_style=formatted_date_cols,
+                    metric_for_styling=selected_metric,
                     axis=1
                 )
+                
+                if format_spec:
+                    styled_df = styled_df.format(format_spec)
+
                 st.dataframe(styled_df, use_container_width=True, hide_index=True, column_config={"Group": None})
 
 # --- 催員催收行為分析 ---
