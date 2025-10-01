@@ -625,7 +625,8 @@ def display_monthly_view(df, selected_group, thresholds):
                 )
                 
                 if format_spec:
-                    styled_df = styled_df.format(format_spec)
+                    formatter = {col: format_spec for col in formatted_date_cols}
+                    styled_df = styled_df.format(formatter, na_rep="-")
 
                 st.dataframe(styled_df, use_container_width=True, hide_index=True, column_config={"Group": None})
 
