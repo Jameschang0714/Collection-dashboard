@@ -645,7 +645,18 @@ def display_monthly_view(df, selected_group, thresholds):
                     formatter = {col: format_spec for col in formatted_date_cols}
                     styled_df = styled_df.format(formatter, na_rep="-")
 
-                st.dataframe(styled_df, use_container_width=True, hide_index=True, column_config={"Group": None})
+                column_config = {
+                    "Group": None,
+                    "Agent ID": st.column_config.Column(pinned="left"),
+                    "Agent Name": st.column_config.Column(pinned="left")
+                }
+
+                st.dataframe(
+                    styled_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config=column_config
+                )
 
 # --- 催員催收行為分析 ---
 def display_behavior_analysis_view(df, selected_group):
