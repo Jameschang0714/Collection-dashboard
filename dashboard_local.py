@@ -27,6 +27,7 @@ LANGUAGES = {
         "daily_view_no_data_for_team": "在選定的團隊中，沒有可用的資料。",
         "daily_view_date_selector": "選擇日期",
         "daily_view_no_records_for_date": "在 {selected_date} 沒有通話紀錄。",
+        "daily_view_focus_info": "已帶入 {date} 的 {agent} 資料。",
         "daily_view_columns": {
             '組別': '組別', 'ID': 'ID', '姓名': '姓名',
             '在手案件數': '在手案件數',
@@ -58,6 +59,10 @@ LANGUAGES = {
         "heatmap_metric_connections": "總接通數",
         "heatmap_metric_total_calls": "總撥打數",
         "heatmap_metric_called_coverage": "撥打案件覆蓋率",
+        "monthly_view_jump_header": "快速跳轉至每日報告",
+        "monthly_view_jump_agent_label": "選擇催員",
+        "monthly_view_jump_date_label": "選擇日期",
+        "monthly_view_jump_button": "查看每日報告",
         "monthly_view_y_axis_calls": "總接通數",
         "monthly_view_y_axis_amount": "總回收金額",
         "monthly_view_tooltip_date": "日期",
@@ -179,6 +184,7 @@ LANGUAGES = {
         "daily_view_no_data_for_team": "No data available for the selected team.",
         "daily_view_date_selector": "Select Date",
         "daily_view_no_records_for_date": "No call records on {selected_date}.",
+        "daily_view_focus_info": "Showing data for {agent} on {date}.",
         "daily_view_columns": {
             '組別': 'Group', 'ID': 'ID', '姓名': 'Name',
             '在手案件數': 'Cases on Hand',
@@ -210,6 +216,10 @@ LANGUAGES = {
         "heatmap_metric_connections": "Total Connections",
         "heatmap_metric_total_calls": "Total Calls",
         "heatmap_metric_called_coverage": "Called Coverage",
+        "monthly_view_jump_header": "Quick Access to Daily Report",
+        "monthly_view_jump_agent_label": "Select Agent",
+        "monthly_view_jump_date_label": "Select Date",
+        "monthly_view_jump_button": "View Daily Report",
         "monthly_view_y_axis_calls": "Total Connections",
         "monthly_view_y_axis_amount": "Total Received Amount",
         "monthly_view_tooltip_date": "Date",
@@ -387,7 +397,21 @@ def display_daily_view(df, selected_group, thresholds):
         st.info(get_text("daily_view_no_data_for_team"))
         return
 
-    selected_date = st.selectbox(get_text("daily_view_date_selector"), available_dates)
+    preselected_date = st.session_state.pop('daily_view_preselect_date', None)
+    default_date_index = 0
+    if preselected_date:
+        try:
+            preselected_date_obj = pd.to_datetime(preselected_date).date()
+            if preselected_date_obj in available_dates:
+                default_date_index = available_dates.index(preselected_date_obj)
+        except Exception:
+            preselected_date_obj = None
+    selected_date = st.selectbox(
+        get_text("daily_view_date_selector"),
+        available_dates,
+        index=default_date_index,
+        key="daily_view_date_select"
+    )
 
     if selected_date:
         df_daily = df[df['Date'].dt.date == selected_date].copy()
@@ -409,6 +433,15 @@ def display_daily_view(df, selected_group, thresholds):
         success_cases.rename(columns={'Case No': 'Total_Success_Case'}, inplace=True)
         summary = pd.merge(summary, success_cases, on='Agent ID', how='left')
         summary['Total_Success_Case'] = summary['Total_Success_Case'].fillna(0).astype(int)
+
+        preselected_agent = st.session_state.pop('daily_view_preselect_agent', None)
+        if preselected_agent:
+            summary['__priority'] = np.where(summary['Agent Name'] == preselected_agent, 0, 1)
+            summary = summary.sort_values(['__priority', 'Agent Name']).drop(columns='__priority')
+            st.info(get_text("daily_view_focus_info").format(
+                agent=preselected_agent,
+                date=selected_date.strftime('%Y-%m-%d')
+            ))
 
         summary['Repetition_rate'] = np.where(summary['Total_Success_Case'] > 0, summary['Total_Outbound_Call_Success'] / summary['Total_Success_Case'], 0)
 
@@ -645,6 +678,37 @@ def display_monthly_view(df, selected_group, thresholds):
                     hide_index=True,
                     column_config=column_config
                 )
+
+                agents_in_group = group_df['Agent Name'].unique().tolist()
+                dates_in_group = sorted(date_cols, reverse=True)
+
+                if agents_in_group and dates_in_group:
+                    jump_header = get_text("monthly_view_jump_header")
+                    st.markdown(f"**{jump_header}**")
+                    jump_cols = st.columns([1.6, 1.2, 0.8])
+                    with jump_cols[0]:
+                        selected_agent_for_jump = st.selectbox(
+                            get_text("monthly_view_jump_agent_label"),
+                            agents_in_group,
+                            key=f"monthly_jump_agent_{group_name}"
+                        )
+                    with jump_cols[1]:
+                        selected_date_for_jump = st.selectbox(
+                            get_text("monthly_view_jump_date_label"),
+                            dates_in_group,
+                            format_func=lambda d: d.strftime('%Y-%m-%d'),
+                            key=f"monthly_jump_date_{group_name}"
+                        )
+                    with jump_cols[2]:
+                        if st.button(
+                            get_text("monthly_view_jump_button"),
+                            key=f"monthly_jump_button_{group_name}"
+                        ):
+                            st.session_state['pending_view_mode'] = get_text("view_modes")[0]
+                            st.session_state['pending_group'] = group_name
+                            st.session_state['daily_view_preselect_date'] = selected_date_for_jump.strftime('%Y-%m-%d')
+                            st.session_state['daily_view_preselect_agent'] = selected_agent_for_jump
+                            st.rerun()
 
 # --- 催員催收行為分析 ---
 def display_behavior_analysis_view(df, selected_group):
@@ -1337,10 +1401,17 @@ def main():
         st.sidebar.header(get_text("sidebar_view_mode"))
 
         view_mode_options = get_text("view_modes")
+        pending_view_mode = st.session_state.pop('pending_view_mode', None)
+        if pending_view_mode and pending_view_mode in view_mode_options:
+            st.session_state['view_mode_radio'] = pending_view_mode
+        if "view_mode_radio" not in st.session_state:
+            st.session_state["view_mode_radio"] = view_mode_options[0]
+
         view_mode = st.sidebar.radio(
             "",
             view_mode_options,
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            key="view_mode_radio"
         )
 
         view_functions = {
@@ -1359,7 +1430,19 @@ def main():
         else:
             all_groups = [get_text("all_teams")]
 
-        selected_group = st.sidebar.selectbox("", all_groups, label_visibility="collapsed")
+        pending_group = st.session_state.pop('pending_group', None)
+        current_group_state = st.session_state.get("group_select")
+        if pending_group and pending_group in all_groups:
+            st.session_state["group_select"] = pending_group
+        elif current_group_state not in all_groups:
+            st.session_state["group_select"] = all_groups[0]
+
+        selected_group = st.sidebar.selectbox(
+            "",
+            all_groups,
+            label_visibility="collapsed",
+            key="group_select"
+        )
 
         if view_mode in view_functions:
             if view_mode in [view_mode_options[0], view_mode_options[1]]:
