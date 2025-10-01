@@ -554,6 +554,10 @@ def display_monthly_view(df, selected_group, thresholds):
                     Total_Case_call=('Case No', 'nunique'),
                     Cases_on_Hand=('Cases on Hand', 'first')
                 ).reset_index()
+                
+                # --- FIX: Ensure 'Cases on Hand' is numeric before division ---
+                daily_agg_raw['Cases_on_Hand'] = pd.to_numeric(daily_agg_raw['Cases_on_Hand'], errors='coerce').fillna(0)
+
                 daily_agg_raw['Called_Coverage'] = np.where(
                     daily_agg_raw['Cases_on_Hand'] > 0,
                     daily_agg_raw['Total_Case_call'] / daily_agg_raw['Cases_on_Hand'],
