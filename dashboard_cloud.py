@@ -580,26 +580,37 @@ def display_monthly_view(df, selected_group, thresholds):
 
             pivot = daily_agg.unstack(level='Date', fill_value=0).reset_index()
 
-            def style_performance(row, date_cols_to_style, metric_for_styling):
+            def style_performance(row, date_cols_to_style, metric_for_styling, weekend_cols):
                 styles = pd.Series('', index=row.index)
-                if metric_for_styling != get_text("heatmap_metric_connections"):
-                    return styles
-                
-                group_name = row['Group']
-                if not thresholds or group_name not in thresholds:
-                    return styles
 
-                lower_bound = thresholds[group_name]['下限']
-                upper_bound = thresholds[group_name]['上限']
+                def append_style(existing, addition):
+                    return f"{existing}; {addition}" if existing else addition
+
+                is_connections_metric = metric_for_styling == get_text("heatmap_metric_connections")
+                group_name = row['Group']
+
+                lower_bound = None
+                upper_bound = None
+                if is_connections_metric and thresholds and group_name in thresholds:
+                    lower_bound = thresholds[group_name]['下限']
+                    upper_bound = thresholds[group_name]['上限']
 
                 for col in date_cols_to_style:
-                    if col in row.index:
-                        val = row[col]
-                        if val > 0:
-                            if val < lower_bound:
-                                styles[col] = 'background-color: #FFCDD2'
-                            elif val >= upper_bound:
-                                styles[col] = 'background-color: #C8E6C9'
+                    if col not in row.index:
+                        continue
+
+                    value = row[col]
+                    is_weekend = col in weekend_cols
+
+                    if is_connections_metric and lower_bound is not None and upper_bound is not None and value > 0:
+                        if value < lower_bound:
+                            styles[col] = append_style(styles[col], 'background-color: #FFCDD2')
+                        elif value >= upper_bound:
+                            styles[col] = append_style(styles[col], 'background-color: #C8E6C9')
+
+                    if is_weekend and 'background-color' not in styles[col]:
+                        styles[col] = append_style(styles[col], 'background-color: #FFFDE7')
+
                 return styles
 
             display_groups = [g for g in CUSTOM_GROUP_ORDER if g in pivot['Group'].unique()]
@@ -616,11 +627,17 @@ def display_monthly_view(df, selected_group, thresholds):
                 formatted_date_cols = [d.strftime('%m/%d') for d in date_cols]
                 rename_mapping = dict(zip(date_cols, formatted_date_cols))
                 renamed_group_df = group_df.rename(columns=rename_mapping)
+                weekend_formatted_cols = [
+                    fmt
+                    for fmt, original_date in zip(formatted_date_cols, date_cols)
+                    if original_date.weekday() >= 5
+                ]
 
                 styled_df = renamed_group_df.style.apply(
                     style_performance,
                     date_cols_to_style=formatted_date_cols,
                     metric_for_styling=selected_metric,
+                    weekend_cols=weekend_formatted_cols,
                     axis=1
                 )
                 
