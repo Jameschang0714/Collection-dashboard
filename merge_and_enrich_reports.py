@@ -152,6 +152,35 @@ def process_daily_kpi_file(kpi_file_path, report_date):
         print(f"處理績效檔案 {os.path.basename(kpi_file_path)} 時發生錯誤: {e}")
         return pd.DataFrame(), pd.DataFrame()
 
+
+# --- 輔助函數：從績效檔名解析日期 ---
+def extract_report_date_from_filename(filename):
+    """從績效檔名取得日期，支援 8 碼與 9 碼格式 (例如 202501001 -> 20251001)。"""
+    candidates = []
+    match_8 = re.search(r'(\d{8})', filename)
+    if match_8:
+        candidates.append(match_8.group(1))
+
+    match_9 = re.search(r'(\d{9})', filename)
+    if match_9:
+        raw = match_9.group(1)
+        year = raw[:4]
+        month_part = raw[4:7]
+        day_part = raw[7:]
+        try:
+            month = int(month_part)
+            day = int(day_part)
+            candidates.append(f"{year}{month:02d}{day:02d}")
+        except ValueError:
+            pass
+
+    for candidate in candidates:
+        try:
+            return pd.to_datetime(candidate, format='%Y%m%d')
+        except ValueError:
+            continue
+    return None
+
 # --- 4. 主邏輯 (已升級) ---
 def main():
     """主執行函數"""
@@ -180,19 +209,18 @@ def main():
 
     kpi_file_map = {}
     for f_path in kpi_file_list:
+        filename = os.path.basename(f_path)
         try:
-            filename = os.path.basename(f_path)
-            match = re.search(r'(\d{8})', filename)
-            if match:
-                date_str = match.group(1)
-                file_date = pd.to_datetime(date_str, format='%Y%m%d')
-                kpi_file_map[file_date.date()] = f_path
-            else:
-                print(f"警告：檔案 {filename} 名稱中找不到日期，已略過。")
-        except Exception:
-            print(f"警告：解析檔案 {filename} 日期時出錯，已略過。")
+            file_date = extract_report_date_from_filename(filename)
+        except Exception as e:
+            print(f"警告：解析檔案 {filename} 日期時出錯 ({e})，已略過。")
             continue
-    
+
+        if file_date is not None:
+            kpi_file_map[file_date.date()] = f_path
+        else:
+            print(f"警告：檔案 {filename} 名稱中找不到可用的日期，已略過。")
+
     if not kpi_file_map:
         print("錯誤：找不到任何有效的每日績效檔案。將僅產出基礎通話報告。")
         df_calls.to_csv(output_path, index=False, encoding='utf-8-sig')

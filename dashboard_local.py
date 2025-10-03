@@ -637,10 +637,36 @@ def display_monthly_view(df, selected_group, thresholds):
             display_groups = [g for g in CUSTOM_GROUP_ORDER if g in pivot['Group'].unique()]
 
             for group_name in display_groups:
-                st.subheader(group_name)
                 group_df = pivot[pivot['Group'] == group_name]
                 date_cols = [col for col in group_df.columns if isinstance(col, pd.Timestamp)]
-                
+                dates_in_group = sorted(date_cols, reverse=True)
+
+                header_cols = st.columns([0.78, 0.22])
+                with header_cols[0]:
+                    st.subheader(group_name)
+                if dates_in_group:
+                    with header_cols[1]:
+                        st.caption(get_text("monthly_view_jump_header"))
+                        control_cols = st.columns([0.65, 0.35])
+                        with control_cols[0]:
+                            selected_date_for_jump = st.selectbox(
+                                get_text("monthly_view_jump_date_label"),
+                                dates_in_group,
+                                format_func=lambda d: d.strftime('%Y-%m-%d'),
+                                key=f"monthly_jump_date_{group_name}",
+                                label_visibility="collapsed"
+                            )
+                        with control_cols[1]:
+                            if st.button(
+                                get_text("monthly_view_jump_button"),
+                                key=f"monthly_jump_button_{group_name}",
+                                use_container_width=True
+                            ):
+                                st.session_state['pending_view_mode'] = get_text("view_modes")[0]
+                                st.session_state['pending_group'] = group_name
+                                st.session_state['daily_view_preselect_date'] = selected_date_for_jump.strftime('%Y-%m-%d')
+                                st.rerun()
+
                 if not date_cols:
                     st.dataframe(group_df.drop(columns=['Group'], errors='ignore'), use_container_width=True, hide_index=True, column_config={"Group": None})
                     continue
@@ -661,7 +687,7 @@ def display_monthly_view(df, selected_group, thresholds):
                     weekend_cols=weekend_formatted_cols,
                     axis=1
                 )
-                
+
                 if format_spec:
                     formatter = {col: format_spec for col in formatted_date_cols}
                     styled_df = styled_df.format(formatter, na_rep="-")
@@ -678,37 +704,6 @@ def display_monthly_view(df, selected_group, thresholds):
                     hide_index=True,
                     column_config=column_config
                 )
-
-                agents_in_group = group_df['Agent Name'].unique().tolist()
-                dates_in_group = sorted(date_cols, reverse=True)
-
-                if agents_in_group and dates_in_group:
-                    jump_header = get_text("monthly_view_jump_header")
-                    st.markdown(f"**{jump_header}**")
-                    jump_cols = st.columns([1.6, 1.2, 0.8])
-                    with jump_cols[0]:
-                        selected_agent_for_jump = st.selectbox(
-                            get_text("monthly_view_jump_agent_label"),
-                            agents_in_group,
-                            key=f"monthly_jump_agent_{group_name}"
-                        )
-                    with jump_cols[1]:
-                        selected_date_for_jump = st.selectbox(
-                            get_text("monthly_view_jump_date_label"),
-                            dates_in_group,
-                            format_func=lambda d: d.strftime('%Y-%m-%d'),
-                            key=f"monthly_jump_date_{group_name}"
-                        )
-                    with jump_cols[2]:
-                        if st.button(
-                            get_text("monthly_view_jump_button"),
-                            key=f"monthly_jump_button_{group_name}"
-                        ):
-                            st.session_state['pending_view_mode'] = get_text("view_modes")[0]
-                            st.session_state['pending_group'] = group_name
-                            st.session_state['daily_view_preselect_date'] = selected_date_for_jump.strftime('%Y-%m-%d')
-                            st.session_state['daily_view_preselect_agent'] = selected_agent_for_jump
-                            st.rerun()
 
 # --- 催員催收行為分析 ---
 def display_behavior_analysis_view(df, selected_group):
@@ -1455,3 +1450,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
