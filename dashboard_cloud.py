@@ -620,13 +620,20 @@ def display_monthly_view(df, selected_group, thresholds):
                     return f"{existing}; {addition}" if existing else addition
 
                 is_connections_metric = metric_for_styling == get_text("heatmap_metric_connections")
+                is_total_calls_metric = metric_for_styling == get_text("heatmap_metric_total_calls")
                 group_name = row['Group']
 
                 lower_bound = None
                 upper_bound = None
-                if is_connections_metric and thresholds and group_name in thresholds:
-                    lower_bound = thresholds[group_name]['下限']
-                    upper_bound = thresholds[group_name]['上限']
+                total_calls_lower_bound = None
+
+                if thresholds and group_name in thresholds:
+                    threshold_info = thresholds[group_name]
+                    if is_connections_metric:
+                        lower_bound = threshold_info.get('下限')
+                        upper_bound = threshold_info.get('上限')
+                    if is_total_calls_metric:
+                        total_calls_lower_bound = threshold_info.get('總撥打數下限')
 
                 for col in date_cols_to_style:
                     if col not in row.index:
@@ -641,11 +648,16 @@ def display_monthly_view(df, selected_group, thresholds):
                         elif value >= upper_bound:
                             styles[col] = append_style(styles[col], 'background-color: #C8E6C9')
 
+                    if is_total_calls_metric and total_calls_lower_bound is not None and value > 0:
+                        if value < total_calls_lower_bound:
+                            styles[col] = append_style(styles[col], 'background-color: #FFCDD2')
+
                     if is_weekend and 'background-color' not in styles[col]:
                         styles[col] = append_style(styles[col], 'background-color: #FFFDE7')
 
                 return styles
 
+            
             display_groups = [g for g in CUSTOM_GROUP_ORDER if g in pivot['Group'].unique()]
 
             for group_name in display_groups:
