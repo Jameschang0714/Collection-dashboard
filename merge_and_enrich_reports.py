@@ -155,12 +155,15 @@ def process_daily_kpi_file(kpi_file_path, report_date):
 
 # --- 輔助函數：從績效檔名解析日期 ---
 def extract_report_date_from_filename(filename):
-    """從績效檔名取得日期，支援 8 碼與 9 碼格式 (例如 202501001 -> 20251001)。"""
-    candidates = []
-    match_8 = re.search(r'(\d{8})', filename)
-    if match_8:
-        candidates.append(match_8.group(1))
+    """從績效檔名取得日期，優先處理 9 碼格式 (YYYYMMMDD)，再回退到標準 8 碼。"""
 
+    def try_parse(candidate: str):
+        try:
+            return pd.to_datetime(candidate, format='%Y%m%d')
+        except ValueError:
+            return None
+
+    # 先處理 9 碼格式，例如 202501010 (代表 2025-10-10)
     match_9 = re.search(r'(\d{9})', filename)
     if match_9:
         raw = match_9.group(1)
@@ -170,16 +173,24 @@ def extract_report_date_from_filename(filename):
         try:
             month = int(month_part)
             day = int(day_part)
-            candidates.append(f"{year}{month:02d}{day:02d}")
         except ValueError:
-            pass
+            month = day = None
 
-    for candidate in candidates:
-        try:
-            return pd.to_datetime(candidate, format='%Y%m%d')
-        except ValueError:
-            continue
+        if month and day and 1 <= month <= 12 and 1 <= day <= 31:
+            candidate = f"{year}{month:02d}{day:02d}"
+            parsed = try_parse(candidate)
+            if parsed is not None:
+                return parsed
+
+    # 再處理標準 8 碼日期 (YYYYMMDD)
+    match_8 = re.search(r'(\d{8})', filename)
+    if match_8:
+        parsed = try_parse(match_8.group(1))
+        if parsed is not None:
+            return parsed
+
     return None
+
 
 # --- 4. 主邏輯 (已升級) ---
 def main():
